@@ -314,6 +314,9 @@ var SysApis = []SysApi{
 	{Path: "/api/k8s/workflow/del", Description: "删除workflow", ApiGroup: "Kubernetes", Method: "DELETE"},
 	{Path: "/api/k8s/workflow/list", Description: "查询workflow列表", ApiGroup: "Kubernetes", Method: "GET"},
 	{Path: "/api/k8s/workflow/id", Description: "查看workflow", ApiGroup: "Kubernetes", Method: "GET"},
+	// Ollama LLM相关接口
+	{Path: "/api/k8s/ollama/deploy", Description: "部署Ollama到指定节点", ApiGroup: "Kubernetes", Method: "POST"},
+	{Path: "/api/k8s/ollama/list", Description: "获取Ollama部署列表", ApiGroup: "Kubernetes", Method: "GET"},
 }
 
 // CMDBHostGroupInitData 初始化主机组

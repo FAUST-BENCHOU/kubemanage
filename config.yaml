@@ -3,7 +3,7 @@ default:
   webSocketListenAddr: ""
   JWTSecret: "kubemanage"
   expireTime: 10
-  kubernetesConfigFile: "/Users/zhoujinyu/CursorProject/kubemanage/kubeconfig"  # Kubernetes配置文件路径
+  kubernetesConfigFile: "/Users/zhoujinyu/CursorProject/kubemanage/kubeconfig-my-k8s"  # Kubernetes配置文件路径
 
 cmdb:
   hostCheck:

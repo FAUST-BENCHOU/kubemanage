@@ -109,4 +109,9 @@ func (k *kubeRouter) initRoutes(ginEngine *gin.RouterGroup) {
 		k8sRoute.GET("/workflow/id", WorkFlow.GetWorkflowByID)
 	}
 
+	{
+		k8sRoute.POST("/ollama/deploy", Ollama.DeployOllama)
+		k8sRoute.GET("/ollama/list", Ollama.GetOllamaList)
+	}
+
 }
