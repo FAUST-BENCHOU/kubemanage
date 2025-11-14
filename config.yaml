@@ -3,6 +3,7 @@ default:
   webSocketListenAddr: ""
   JWTSecret: "kubemanage"
   expireTime: 10
+  kubernetesConfigFile: "/Users/zhoujinyu/CursorProject/kubemanage/kubeconfig"  # Kubernetes配置文件路径
 
 cmdb:
   hostCheck:
@@ -14,7 +15,7 @@ mysql:
   host: "127.0.0.1"
   port: "3306"
   user: "root"
-  password: "chenteng"
+  password: "12345678"
   name: "kubemanage"
   maxOpenConns: 100
   maxLifetime: 20
