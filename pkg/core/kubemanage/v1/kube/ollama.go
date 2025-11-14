@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	appsV1 "k8s.io/api/apps/v1"
@@ -541,4 +542,128 @@ func (o *ollama) convertDaemonSetToInfo(ds *appsV1.DaemonSet, nodeName string) *
 	}
 
 	return info
+}
+
+// PullModel 拉取模型到指定的 Pod
+func (o *ollama) PullModel(podName, namespace, modelName string) error {
+	// 获取 Pod 信息以确定端口
+	pod, err := Pod.GetPodDetail(podName, namespace)
+	if err != nil {
+		return fmt.Errorf("获取Pod信息失败: %v", err)
+	}
+
+	// 检查 Pod 是否就绪
+	if pod.Status.Phase != coreV1.PodRunning {
+		return fmt.Errorf("pod %s 状态为 %s，请等待Pod启动完成", podName, pod.Status.Phase)
+	}
+
+	// 获取端口
+	var port int32 = 11434
+	if len(pod.Spec.Containers) > 0 {
+		for _, containerPort := range pod.Spec.Containers[0].Ports {
+			if containerPort.Name == "http" || containerPort.ContainerPort == 11434 {
+				port = containerPort.ContainerPort
+				break
+			}
+		}
+	}
+
+	// 准备请求体
+	requestBody := map[string]string{
+		"name": modelName,
+	}
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("序列化请求体失败: %v", err)
+	}
+
+	// 使用 Kubernetes API Server 代理访问 Pod
+	// 路径格式: /api/v1/namespaces/{namespace}/pods/{name}:{port}/proxy/{path}
+	req := K8s.ClientSet.CoreV1().RESTClient().Post().
+		Namespace(namespace).
+		Resource("pods").
+		Name(fmt.Sprintf("%s:%d", podName, port)).
+		SubResource("proxy").
+		Suffix("/api/pull").
+		Body(jsonData).
+		SetHeader("Content-Type", "application/json")
+
+	// 发送请求（设置较长的超时时间，因为模型下载可能需要较长时间）
+	result := req.Do(context.TODO())
+	if result.Error() != nil {
+		return fmt.Errorf("请求Ollama API失败: %v", result.Error())
+	}
+
+	// 读取响应
+	body, err := result.Raw()
+	if err != nil {
+		return fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	// 检查状态码（通过检查响应内容来判断是否成功）
+	// Ollama pull API 返回流式响应，即使成功也可能不是 200
+	// 检查响应是否包含错误信息
+	var responseData map[string]interface{}
+	if err := json.Unmarshal(body, &responseData); err == nil {
+		// 如果能解析为 JSON，检查是否有错误字段
+		if errMsg, ok := responseData["error"].(string); ok && errMsg != "" {
+			return fmt.Errorf("ollama API返回错误: %s", errMsg)
+		}
+	}
+
+	return nil
+}
+
+// GetModelList 获取指定 Pod 的模型列表
+func (o *ollama) GetModelList(podName, namespace string) (interface{}, error) {
+	// 获取 Pod 信息以确定端口
+	pod, err := Pod.GetPodDetail(podName, namespace)
+	if err != nil {
+		return nil, fmt.Errorf("获取Pod信息失败: %v", err)
+	}
+
+	// 检查 Pod 是否就绪
+	if pod.Status.Phase != coreV1.PodRunning {
+		return nil, fmt.Errorf("pod %s 状态为 %s，请等待Pod启动完成", podName, pod.Status.Phase)
+	}
+
+	// 获取端口
+	var port int32 = 11434
+	if len(pod.Spec.Containers) > 0 {
+		for _, containerPort := range pod.Spec.Containers[0].Ports {
+			if containerPort.Name == "http" || containerPort.ContainerPort == 11434 {
+				port = containerPort.ContainerPort
+				break
+			}
+		}
+	}
+
+	// 使用 Kubernetes API Server 代理访问 Pod
+	// 路径格式: /api/v1/namespaces/{namespace}/pods/{name}:{port}/proxy/{path}
+	req := K8s.ClientSet.CoreV1().RESTClient().Get().
+		Namespace(namespace).
+		Resource("pods").
+		Name(fmt.Sprintf("%s:%d", podName, port)).
+		SubResource("proxy").
+		Suffix("/api/tags")
+
+	// 发送请求
+	result := req.Do(context.TODO())
+	if result.Error() != nil {
+		return nil, fmt.Errorf("请求Ollama API失败: %v", result.Error())
+	}
+
+	// 读取响应
+	body, err := result.Raw()
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	// 解析 JSON 响应
+	var responseData map[string]interface{}
+	if err := json.Unmarshal(body, &responseData); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %v, body: %s", err, string(body))
+	}
+
+	return responseData, nil
 }

@@ -317,6 +317,8 @@ var SysApis = []SysApi{
 	// Ollama LLM相关接口
 	{Path: "/api/k8s/ollama/deploy", Description: "部署Ollama到指定节点", ApiGroup: "Kubernetes", Method: "POST"},
 	{Path: "/api/k8s/ollama/list", Description: "获取Ollama部署列表", ApiGroup: "Kubernetes", Method: "GET"},
+	{Path: "/api/k8s/ollama/model/pull", Description: "拉取模型到Ollama部署", ApiGroup: "Kubernetes", Method: "POST"},
+	{Path: "/api/k8s/ollama/model/list", Description: "获取Ollama部署的模型列表", ApiGroup: "Kubernetes", Method: "GET"},
 }
 
 // CMDBHostGroupInitData 初始化主机组

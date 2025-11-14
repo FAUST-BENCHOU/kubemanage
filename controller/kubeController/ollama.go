@@ -69,3 +69,55 @@ func (o *ollama) GetOllamaList(ctx *gin.Context) {
 	}
 	middleware.ResponseSuccess(ctx, data)
 }
+
+// PullModel 拉取模型到指定的 Pod
+// @Summary      拉取模型到指定的 Pod
+// @Description  在指定的 Pod 中拉取模型
+// @Tags         ollama
+// @ID           /api/k8s/ollama/model/pull
+// @Accept       json
+// @Produce      json
+// @Param        body  body  kubeDto.OllamaPullModelInput  true  "拉取模型参数"
+// @Success      200   {object}  middleware.Response"{"code": 200, msg="","data": "拉取成功}"
+// @Router       /api/k8s/ollama/model/pull [post]
+func (o *ollama) PullModel(ctx *gin.Context) {
+	params := &kubeDto.OllamaPullModelInput{}
+	if err := params.BindingValidParams(ctx); err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+	if err := kube.Ollama.PullModel(params.PodName, params.NameSpace, params.ModelName); err != nil {
+		v1.Log.ErrorWithCode(globalError.CreateError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.CreateError, err))
+		return
+	}
+	middleware.ResponseSuccess(ctx, "拉取成功")
+}
+
+// GetModelList 获取指定 Pod 的模型列表
+// @Summary      获取指定 Pod 的模型列表
+// @Description  获取指定 Pod 中已安装的模型列表
+// @Tags         ollama
+// @ID           /api/k8s/ollama/model/list
+// @Accept       json
+// @Produce      json
+// @Param        pod_name   query  string  true  "Pod名称"
+// @Param        namespace  query  string  true  "命名空间"
+// @Success      200        {object}  middleware.Response"{"code": 200, msg="","data": object}"
+// @Router       /api/k8s/ollama/model/list [get]
+func (o *ollama) GetModelList(ctx *gin.Context) {
+	params := &kubeDto.OllamaModelListInput{}
+	if err := params.BindingValidParams(ctx); err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+	data, err := kube.Ollama.GetModelList(params.PodName, params.NameSpace)
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.GetError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.GetError, err))
+		return
+	}
+	middleware.ResponseSuccess(ctx, data)
+}
