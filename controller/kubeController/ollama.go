@@ -121,3 +121,58 @@ func (o *ollama) GetModelList(ctx *gin.Context) {
 	}
 	middleware.ResponseSuccess(ctx, data)
 }
+
+// DeleteModel 删除指定 Pod 中的模型
+// @Summary      删除指定 Pod 中的模型
+// @Description  删除指定 Pod 中的 Ollama 模型
+// @Tags         ollama
+// @ID           /api/k8s/ollama/model/del
+// @Accept       json
+// @Produce      json
+// @Param        pod_name   query  string  true  "Pod名称"
+// @Param        namespace  query  string  true  "命名空间"
+// @Param        model_name query  string  true  "模型名称"
+// @Success      200        {object}  middleware.Response"{"code": 200, msg="","data": "删除成功}"
+// @Router       /api/k8s/ollama/model/del [delete]
+func (o *ollama) DeleteModel(ctx *gin.Context) {
+	params := &kubeDto.OllamaDeleteModelInput{}
+	if err := params.BindingValidParams(ctx); err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+	if err := kube.Ollama.DeleteModel(params.PodName, params.NameSpace, params.ModelName); err != nil {
+		v1.Log.ErrorWithCode(globalError.DeleteError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.DeleteError, err))
+		return
+	}
+	middleware.ResponseSuccess(ctx, "删除成功")
+}
+
+// GetModelDetail 获取指定 Pod 中模型的详情
+// @Summary      获取指定 Pod 中模型的详情
+// @Description  获取指定 Pod 中 Ollama 模型的详细信息
+// @Tags         ollama
+// @ID           /api/k8s/ollama/model/detail
+// @Accept       json
+// @Produce      json
+// @Param        pod_name   query  string  true  "Pod名称"
+// @Param        namespace  query  string  true  "命名空间"
+// @Param        model_name query  string  true  "模型名称"
+// @Success      200        {object}  middleware.Response"{"code": 200, msg="","data": object}"
+// @Router       /api/k8s/ollama/model/detail [get]
+func (o *ollama) GetModelDetail(ctx *gin.Context) {
+	params := &kubeDto.OllamaModelDetailInput{}
+	if err := params.BindingValidParams(ctx); err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+	data, err := kube.Ollama.GetModelDetail(params.PodName, params.NameSpace, params.ModelName)
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.GetError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.GetError, err))
+		return
+	}
+	middleware.ResponseSuccess(ctx, data)
+}

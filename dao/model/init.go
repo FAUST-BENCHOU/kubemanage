@@ -319,6 +319,8 @@ var SysApis = []SysApi{
 	{Path: "/api/k8s/ollama/list", Description: "获取Ollama部署列表", ApiGroup: "Kubernetes", Method: "GET"},
 	{Path: "/api/k8s/ollama/model/pull", Description: "拉取模型到Ollama部署", ApiGroup: "Kubernetes", Method: "POST"},
 	{Path: "/api/k8s/ollama/model/list", Description: "获取Ollama部署的模型列表", ApiGroup: "Kubernetes", Method: "GET"},
+	{Path: "/api/k8s/ollama/model/del", Description: "删除Pod中的Ollama模型", ApiGroup: "Kubernetes", Method: "DELETE"},
+	{Path: "/api/k8s/ollama/model/detail", Description: "获取Pod中Ollama模型的详情", ApiGroup: "Kubernetes", Method: "GET"},
 }
 
 // CMDBHostGroupInitData 初始化主机组

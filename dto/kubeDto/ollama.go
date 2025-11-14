@@ -48,6 +48,20 @@ type OllamaModelListInput struct {
 	NameSpace string `json:"namespace" form:"namespace" comment:"命名空间" validate:"required"`
 }
 
+// OllamaDeleteModelInput Ollama 删除模型输入参数
+type OllamaDeleteModelInput struct {
+	PodName   string `json:"pod_name" form:"pod_name" comment:"Pod名称" validate:"required"`
+	NameSpace string `json:"namespace" form:"namespace" comment:"命名空间" validate:"required"`
+	ModelName string `json:"model_name" form:"model_name" comment:"模型名称" validate:"required"`
+}
+
+// OllamaModelDetailInput Ollama 模型详情查询参数
+type OllamaModelDetailInput struct {
+	PodName   string `json:"pod_name" form:"pod_name" comment:"Pod名称" validate:"required"`
+	NameSpace string `json:"namespace" form:"namespace" comment:"命名空间" validate:"required"`
+	ModelName string `json:"model_name" form:"model_name" comment:"模型名称" validate:"required"`
+}
+
 func (params *OllamaDeployInput) BindingValidParams(c *gin.Context) error {
 	return pkg.DefaultGetValidParams(c, params)
 }
@@ -65,5 +79,13 @@ func (params *OllamaPullModelInput) BindingValidParams(c *gin.Context) error {
 }
 
 func (params *OllamaModelListInput) BindingValidParams(c *gin.Context) error {
+	return pkg.DefaultGetValidParams(c, params)
+}
+
+func (params *OllamaDeleteModelInput) BindingValidParams(c *gin.Context) error {
+	return pkg.DefaultGetValidParams(c, params)
+}
+
+func (params *OllamaModelDetailInput) BindingValidParams(c *gin.Context) error {
 	return pkg.DefaultGetValidParams(c, params)
 }
