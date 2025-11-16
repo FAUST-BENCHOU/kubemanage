@@ -77,6 +77,14 @@ type OllamaChatInput struct {
 	Stream    bool                `json:"stream" form:"stream" comment:"是否流式返回"`
 }
 
+// OllamaEmbeddingsInput Ollama 向量嵌入输入参数
+type OllamaEmbeddingsInput struct {
+	PodName   string `json:"pod_name" form:"pod_name" comment:"Pod名称" validate:"required"`
+	NameSpace string `json:"namespace" form:"namespace" comment:"命名空间" validate:"required"`
+	Model     string `json:"model" form:"model" comment:"模型名称" validate:"required"`
+	Prompt    string `json:"prompt" form:"prompt" comment:"要嵌入的文本" validate:"required"`
+}
+
 func (params *OllamaDeployInput) BindingValidParams(c *gin.Context) error {
 	return pkg.DefaultGetValidParams(c, params)
 }
@@ -106,5 +114,9 @@ func (params *OllamaModelDetailInput) BindingValidParams(c *gin.Context) error {
 }
 
 func (params *OllamaChatInput) BindingValidParams(c *gin.Context) error {
+	return pkg.DefaultGetValidParams(c, params)
+}
+
+func (params *OllamaEmbeddingsInput) BindingValidParams(c *gin.Context) error {
 	return pkg.DefaultGetValidParams(c, params)
 }

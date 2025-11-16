@@ -202,3 +202,29 @@ func (o *ollama) Chat(ctx *gin.Context) {
 	}
 	middleware.ResponseSuccess(ctx, data)
 }
+
+// Embeddings 调用指定 Pod 上的模型生成文本向量嵌入
+// @Summary      调用指定 Pod 上的模型生成文本向量嵌入
+// @Description  调用指定 Pod 上的 Ollama 模型生成文本的向量嵌入
+// @Tags         ollama
+// @ID           /api/k8s/ollama/embeddings
+// @Accept       json
+// @Produce      json
+// @Param        body  body  kubeDto.OllamaEmbeddingsInput  true  "向量嵌入参数"
+// @Success      200   {object}  middleware.Response"{"code": 200, msg="","data": object}"
+// @Router       /api/k8s/ollama/embeddings [post]
+func (o *ollama) Embeddings(ctx *gin.Context) {
+	params := &kubeDto.OllamaEmbeddingsInput{}
+	if err := params.BindingValidParams(ctx); err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+	data, err := kube.Ollama.Embeddings(params.PodName, params.NameSpace, params.Model, params.Prompt)
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.GetError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.GetError, err))
+		return
+	}
+	middleware.ResponseSuccess(ctx, data)
+}

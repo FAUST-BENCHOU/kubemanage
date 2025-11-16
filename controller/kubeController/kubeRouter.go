@@ -119,6 +119,8 @@ func (k *kubeRouter) initRoutes(ginEngine *gin.RouterGroup) {
 		k8sRoute.GET("/ollama/model/detail", Ollama.GetModelDetail)
 		// 聊天接口
 		k8sRoute.POST("/ollama/chat", Ollama.Chat)
+		// 向量嵌入接口
+		k8sRoute.POST("/ollama/embeddings", Ollama.Embeddings)
 	}
 
 }
