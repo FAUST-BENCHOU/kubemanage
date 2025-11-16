@@ -176,3 +176,29 @@ func (o *ollama) GetModelDetail(ctx *gin.Context) {
 	}
 	middleware.ResponseSuccess(ctx, data)
 }
+
+// Chat 调用指定 Pod 上的模型进行聊天
+// @Summary      调用指定 Pod 上的模型进行聊天
+// @Description  调用指定 Pod 上的 Ollama 模型进行对话
+// @Tags         ollama
+// @ID           /api/k8s/ollama/chat
+// @Accept       json
+// @Produce      json
+// @Param        body  body  kubeDto.OllamaChatInput  true  "聊天参数"
+// @Success      200   {object}  middleware.Response"{"code": 200, msg="","data": object}"
+// @Router       /api/k8s/ollama/chat [post]
+func (o *ollama) Chat(ctx *gin.Context) {
+	params := &kubeDto.OllamaChatInput{}
+	if err := params.BindingValidParams(ctx); err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+	data, err := kube.Ollama.Chat(params.PodName, params.NameSpace, params.Model, params.Messages, params.Stream)
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.GetError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.GetError, err))
+		return
+	}
+	middleware.ResponseSuccess(ctx, data)
+}

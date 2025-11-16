@@ -62,6 +62,21 @@ type OllamaModelDetailInput struct {
 	ModelName string `json:"model_name" form:"model_name" comment:"模型名称" validate:"required"`
 }
 
+// OllamaChatMessage Ollama 聊天消息
+type OllamaChatMessage struct {
+	Role    string `json:"role" comment:"角色: user, assistant, system" validate:"required"`
+	Content string `json:"content" comment:"消息内容" validate:"required"`
+}
+
+// OllamaChatInput Ollama 聊天输入参数
+type OllamaChatInput struct {
+	PodName   string              `json:"pod_name" form:"pod_name" comment:"Pod名称" validate:"required"`
+	NameSpace string              `json:"namespace" form:"namespace" comment:"命名空间" validate:"required"`
+	Model     string              `json:"model" form:"model" comment:"模型名称" validate:"required"`
+	Messages  []OllamaChatMessage `json:"messages" form:"messages" comment:"消息列表" validate:"required,min=1"`
+	Stream    bool                `json:"stream" form:"stream" comment:"是否流式返回"`
+}
+
 func (params *OllamaDeployInput) BindingValidParams(c *gin.Context) error {
 	return pkg.DefaultGetValidParams(c, params)
 }
@@ -87,5 +102,9 @@ func (params *OllamaDeleteModelInput) BindingValidParams(c *gin.Context) error {
 }
 
 func (params *OllamaModelDetailInput) BindingValidParams(c *gin.Context) error {
+	return pkg.DefaultGetValidParams(c, params)
+}
+
+func (params *OllamaChatInput) BindingValidParams(c *gin.Context) error {
 	return pkg.DefaultGetValidParams(c, params)
 }
