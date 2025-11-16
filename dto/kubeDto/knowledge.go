@@ -23,6 +23,19 @@ type KnowledgeDeployInput struct {
 	DeployType      string            `json:"deploy_type" form:"deploy_type" comment:"部署类型: deployment 或 daemonset" validate:"required"`
 }
 
+// KnowledgeUploadDocumentInput 知识库上传文档输入参数
+type KnowledgeUploadDocumentInput struct {
+	PodName        string `form:"pod_name" comment:"知识库Pod名称" validate:"required"`
+	NameSpace      string `form:"namespace" comment:"命名空间" validate:"required"`
+	KnowledgeType  string `form:"knowledge_type" comment:"知识库类型: chromadb, milvus, weaviate" validate:"required"`
+	CollectionName string `form:"collection_name" comment:"集合名称（可选，默认使用文件名）"`
+	ChunkSize      int    `form:"chunk_size" comment:"分块大小（可选，默认1000）"`
+}
+
 func (params *KnowledgeDeployInput) BindingValidParams(c *gin.Context) error {
+	return pkg.DefaultGetValidParams(c, params)
+}
+
+func (params *KnowledgeUploadDocumentInput) BindingValidParams(c *gin.Context) error {
 	return pkg.DefaultGetValidParams(c, params)
 }

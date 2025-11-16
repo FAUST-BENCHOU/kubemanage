@@ -1,6 +1,8 @@
 package kubeController
 
 import (
+	"io"
+
 	"github.com/gin-gonic/gin"
 	"github.com/noovertime7/kubemanage/dto/kubeDto"
 	"github.com/noovertime7/kubemanage/middleware"
@@ -36,4 +38,71 @@ func (k *knowledge) DeployKnowledge(ctx *gin.Context) {
 		return
 	}
 	middleware.ResponseSuccess(ctx, "部署成功")
+}
+
+// UploadDocument 上传文档到知识库
+// @Summary      上传文档到知识库
+// @Description  向指定的知识库 Pod 上传文档文件，支持 ChromaDB、Milvus、Weaviate
+// @Tags         knowledge
+// @ID           /api/k8s/knowledge/document/upload
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        pod_name        formData  string  true   "知识库Pod名称"
+// @Param        namespace       formData  string  true   "命名空间"
+// @Param        knowledge_type  formData  string  true   "知识库类型: chromadb, milvus, weaviate"
+// @Param        file            formData  file    true   "文档文件"
+// @Param        collection_name formData  string  false  "集合名称（可选）"
+// @Param        chunk_size      formData  int     false  "分块大小（可选，默认1000）"
+// @Success      200             {object}  middleware.Response"{"code": 200, msg="","data": object}"
+// @Router       /api/k8s/knowledge/document/upload [post]
+func (k *knowledge) UploadDocument(ctx *gin.Context) {
+	params := &kubeDto.KnowledgeUploadDocumentInput{}
+	if err := params.BindingValidParams(ctx); err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+
+	file, err := ctx.FormFile("file")
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+	defer src.Close()
+
+	fileContent, err := io.ReadAll(src)
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+
+	collectionName := params.CollectionName
+	if collectionName == "" {
+		collectionName = file.Filename
+	}
+
+	data, err := kube.Knowledge.UploadDocument(
+		params.PodName,
+		params.NameSpace,
+		params.KnowledgeType,
+		fileContent,
+		file.Filename,
+		collectionName,
+		params.ChunkSize,
+	)
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.CreateError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.CreateError, err))
+		return
+	}
+	middleware.ResponseSuccess(ctx, data)
 }
