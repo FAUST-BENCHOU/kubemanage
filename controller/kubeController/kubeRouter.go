@@ -123,4 +123,9 @@ func (k *kubeRouter) initRoutes(ginEngine *gin.RouterGroup) {
 		k8sRoute.POST("/ollama/embeddings", Ollama.Embeddings)
 	}
 
+	{
+		// 知识库接口
+		k8sRoute.POST("/knowledge/deploy", Knowledge.DeployKnowledge)
+	}
+
 }

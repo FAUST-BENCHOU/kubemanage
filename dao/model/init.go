@@ -323,6 +323,8 @@ var SysApis = []SysApi{
 	{Path: "/api/k8s/ollama/model/detail", Description: "获取Pod中Ollama模型的详情", ApiGroup: "Kubernetes", Method: "GET"},
 	{Path: "/api/k8s/ollama/chat", Description: "调用对应Pod上的模型进行聊天", ApiGroup: "Kubernetes", Method: "POST"},
 	{Path: "/api/k8s/ollama/embeddings", Description: "调用对应Pod上的模型生成文本向量嵌入", ApiGroup: "Kubernetes", Method: "POST"},
+	// 知识库相关接口
+	{Path: "/api/k8s/knowledge/deploy", Description: "部署知识库到指定节点", ApiGroup: "Kubernetes", Method: "POST"},
 }
 
 // CMDBHostGroupInitData 初始化主机组
