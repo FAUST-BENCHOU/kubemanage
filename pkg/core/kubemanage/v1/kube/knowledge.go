@@ -165,36 +165,8 @@ func (k *knowledge) createDeployment(data *kubeDto.KnowledgeDeployInput, labels 
 		}
 	}
 
-	// 添加健康检查（使用默认路径）
-	deployment.Spec.Template.Spec.Containers[0].LivenessProbe = &coreV1.Probe{
-		ProbeHandler: coreV1.ProbeHandler{
-			HTTPGet: &coreV1.HTTPGetAction{
-				Path: "/health",
-				Port: intstr.IntOrString{
-					Type:   intstr.Int,
-					IntVal: data.Port,
-				},
-			},
-		},
-		InitialDelaySeconds: 30,
-		PeriodSeconds:       10,
-		TimeoutSeconds:      5,
-	}
-
-	deployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &coreV1.Probe{
-		ProbeHandler: coreV1.ProbeHandler{
-			HTTPGet: &coreV1.HTTPGetAction{
-				Path: "/health",
-				Port: intstr.IntOrString{
-					Type:   intstr.Int,
-					IntVal: data.Port,
-				},
-			},
-		},
-		InitialDelaySeconds: 10,
-		PeriodSeconds:       5,
-		TimeoutSeconds:      3,
-	}
+	// 不添加健康检查，让 Pod 可以正常启动
+	// 如果知识库服务需要健康检查，可以在部署后手动配置
 
 	_, err := K8s.ClientSet.AppsV1().Deployments(data.NameSpace).Create(context.TODO(), deployment, metaV1.CreateOptions{})
 	return err
