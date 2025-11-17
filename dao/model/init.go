@@ -325,6 +325,7 @@ var SysApis = []SysApi{
 	{Path: "/api/k8s/ollama/embeddings", Description: "调用对应Pod上的模型生成文本向量嵌入", ApiGroup: "Kubernetes", Method: "POST"},
 	// 知识库相关接口
 	{Path: "/api/k8s/knowledge/deploy", Description: "部署知识库到指定节点", ApiGroup: "Kubernetes", Method: "POST"},
+	{Path: "/api/k8s/knowledge/list", Description: "获取知识库部署列表", ApiGroup: "Kubernetes", Method: "GET"},
 	{Path: "/api/k8s/knowledge/document/upload", Description: "上传文档到知识库", ApiGroup: "Kubernetes", Method: "POST"},
 	{Path: "/api/k8s/knowledge/query", Description: "查询知识库", ApiGroup: "Kubernetes", Method: "POST"},
 }

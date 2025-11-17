@@ -2,6 +2,7 @@ package kubeController
 
 import (
 	"io"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/noovertime7/kubemanage/dto/kubeDto"
@@ -141,6 +142,47 @@ func (k *knowledge) QueryDocument(ctx *gin.Context) {
 	if err != nil {
 		v1.Log.ErrorWithCode(globalError.CreateError, err)
 		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.CreateError, err))
+		return
+	}
+	middleware.ResponseSuccess(ctx, data)
+}
+
+// ListKnowledge 获取知识库部署列表
+// @Summary      获取知识库部署列表
+// @Description  获取知识库部署列表，支持分页和过滤
+// @Tags         knowledge
+// @ID           /api/k8s/knowledge/list
+// @Accept       json
+// @Produce      json
+// @Param        filter_name  query  string  false  "过滤名称"
+// @Param        namespace    query  string  false  "命名空间"
+// @Param        node_name    query  string  false  "节点名称"
+// @Param        page         query  int     false  "页码（默认1）"
+// @Param        limit        query  int     false  "分页限制（默认10）"
+// @Success      200          {object}  middleware.Response"{"code": 200, msg="","data": object}"
+// @Router       /api/k8s/knowledge/list [get]
+func (k *knowledge) ListKnowledge(ctx *gin.Context) {
+	filterName := ctx.Query("filter_name")
+	namespace := ctx.Query("namespace")
+	nodeName := ctx.Query("node_name")
+
+	page := 1
+	limit := 10
+	if pageStr := ctx.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil {
+			page = p
+		}
+	}
+	if limitStr := ctx.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil {
+			limit = l
+		}
+	}
+
+	data, err := kube.Knowledge.ListKnowledge(filterName, namespace, nodeName, limit, page)
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.GetError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.GetError, err))
 		return
 	}
 	middleware.ResponseSuccess(ctx, data)

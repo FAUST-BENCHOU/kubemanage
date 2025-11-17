@@ -1055,6 +1055,248 @@ func (k *knowledge) batchAddToWeaviate(podName, namespace string, port int32, cl
 	return responseData, nil
 }
 
+// KnowledgeResp 知识库列表响应
+type KnowledgeResp struct {
+	Total int                   `json:"total"`
+	Items []KnowledgeDeployInfo `json:"items"`
+}
+
+// KnowledgeDeployInfo 知识库部署信息
+type KnowledgeDeployInfo struct {
+	Name            string            `json:"name"`
+	Namespace       string            `json:"namespace"`
+	Type            string            `json:"type"` // deployment 或 daemonset
+	Image           string            `json:"image"`
+	Port            int32             `json:"port"`
+	NodeSelector    map[string]string `json:"node_selector"`
+	Status          string            `json:"status"`
+	Pods            int32             `json:"pods"`
+	ReadyPods       int32             `json:"ready_pods"`
+	OllamaPodName   string            `json:"ollama_pod_name,omitempty"`
+	OllamaModel     string            `json:"ollama_model,omitempty"`
+	OllamaNamespace string            `json:"ollama_namespace,omitempty"`
+	StorageSize     string            `json:"storage_size,omitempty"`
+}
+
+// ListKnowledge 获取知识库部署列表
+func (k *knowledge) ListKnowledge(filterName, namespace, nodeName string, limit, page int) (*KnowledgeResp, error) {
+	var items []KnowledgeDeployInfo
+
+	// 获取所有命名空间的 Deployment 和 DaemonSet
+	namespaces := []string{namespace}
+	if namespace == "" {
+		nsList, err := K8s.ClientSet.CoreV1().Namespaces().List(context.TODO(), metaV1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		namespaces = make([]string, len(nsList.Items))
+		for i, ns := range nsList.Items {
+			namespaces[i] = ns.Name
+		}
+	}
+
+	// 收集所有带有 knowledge 标签的资源
+	for _, ns := range namespaces {
+		// 获取 Deployment
+		deployList, err := K8s.ClientSet.AppsV1().Deployments(ns).List(context.TODO(), metaV1.ListOptions{
+			LabelSelector: "app=knowledge,managed=kubemanage",
+		})
+		if err == nil {
+			for _, deploy := range deployList.Items {
+				if filterName == "" || deploy.Name == filterName {
+					info := k.convertDeploymentToInfo(&deploy, nodeName)
+					if info != nil {
+						items = append(items, *info)
+					}
+				}
+			}
+		}
+
+		// 获取 DaemonSet
+		dsList, err := K8s.ClientSet.AppsV1().DaemonSets(ns).List(context.TODO(), metaV1.ListOptions{
+			LabelSelector: "app=knowledge,managed=kubemanage",
+		})
+		if err == nil {
+			for _, ds := range dsList.Items {
+				if filterName == "" || ds.Name == filterName {
+					info := k.convertDaemonSetToInfo(&ds, nodeName)
+					if info != nil {
+						items = append(items, *info)
+					}
+				}
+			}
+		}
+	}
+
+	// 分页处理
+	total := len(items)
+	start := (page - 1) * limit
+	end := start + limit
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+	if start < 0 {
+		start = 0
+	}
+
+	var pagedItems []KnowledgeDeployInfo
+	if start < end {
+		pagedItems = items[start:end]
+	}
+
+	return &KnowledgeResp{
+		Total: total,
+		Items: pagedItems,
+	}, nil
+}
+
+// convertDeploymentToInfo 转换 Deployment 为 KnowledgeDeployInfo
+func (k *knowledge) convertDeploymentToInfo(deploy *appsV1.Deployment, nodeName string) *KnowledgeDeployInfo {
+	// 如果指定了节点名称，检查节点选择器
+	if nodeName != "" {
+		if deploy.Spec.Template.Spec.NodeSelector != nil {
+			if hostname, ok := deploy.Spec.Template.Spec.NodeSelector["kubernetes.io/hostname"]; ok {
+				if hostname != nodeName {
+					return nil
+				}
+			}
+		} else {
+			return nil
+		}
+	}
+
+	info := &KnowledgeDeployInfo{
+		Name:         deploy.Name,
+		Namespace:    deploy.Namespace,
+		Type:         "deployment",
+		NodeSelector: deploy.Spec.Template.Spec.NodeSelector,
+		Pods:         *deploy.Spec.Replicas,
+		ReadyPods:    deploy.Status.ReadyReplicas,
+	}
+
+	// 获取容器信息
+	if len(deploy.Spec.Template.Spec.Containers) > 0 {
+		container := deploy.Spec.Template.Spec.Containers[0]
+		info.Image = container.Image
+		if len(container.Ports) > 0 {
+			info.Port = container.Ports[0].ContainerPort
+		}
+
+		// 获取环境变量（Ollama 绑定信息）
+		for _, env := range container.Env {
+			switch env.Name {
+			case "OLLAMA_POD_NAME":
+				info.OllamaPodName = env.Value
+			case "OLLAMA_NAMESPACE":
+				info.OllamaNamespace = env.Value
+			case "OLLAMA_MODEL":
+				info.OllamaModel = env.Value
+			}
+		}
+	}
+
+	// 获取存储信息（从 PVC）
+	if len(deploy.Spec.Template.Spec.Volumes) > 0 {
+		for _, volume := range deploy.Spec.Template.Spec.Volumes {
+			if volume.PersistentVolumeClaim != nil {
+				pvcName := volume.PersistentVolumeClaim.ClaimName
+				pvc, err := K8s.ClientSet.CoreV1().PersistentVolumeClaims(deploy.Namespace).Get(context.TODO(), pvcName, metaV1.GetOptions{})
+				if err == nil {
+					if storage, ok := pvc.Spec.Resources.Requests[coreV1.ResourceStorage]; ok {
+						info.StorageSize = storage.String()
+					}
+				}
+			}
+		}
+	}
+
+	// 设置状态
+	if deploy.Status.ReadyReplicas == *deploy.Spec.Replicas && *deploy.Spec.Replicas > 0 {
+		info.Status = "Ready"
+	} else if deploy.Status.ReadyReplicas > 0 {
+		info.Status = "NotReady"
+	} else {
+		info.Status = "Pending"
+	}
+
+	return info
+}
+
+// convertDaemonSetToInfo 转换 DaemonSet 为 KnowledgeDeployInfo
+func (k *knowledge) convertDaemonSetToInfo(ds *appsV1.DaemonSet, nodeName string) *KnowledgeDeployInfo {
+	// 如果指定了节点名称，检查节点选择器
+	if nodeName != "" {
+		if ds.Spec.Template.Spec.NodeSelector != nil {
+			if hostname, ok := ds.Spec.Template.Spec.NodeSelector["kubernetes.io/hostname"]; ok {
+				if hostname != nodeName {
+					return nil
+				}
+			}
+		} else {
+			return nil
+		}
+	}
+
+	info := &KnowledgeDeployInfo{
+		Name:         ds.Name,
+		Namespace:    ds.Namespace,
+		Type:         "daemonset",
+		NodeSelector: ds.Spec.Template.Spec.NodeSelector,
+		Pods:         ds.Status.DesiredNumberScheduled,
+		ReadyPods:    ds.Status.NumberReady,
+	}
+
+	// 获取容器信息
+	if len(ds.Spec.Template.Spec.Containers) > 0 {
+		container := ds.Spec.Template.Spec.Containers[0]
+		info.Image = container.Image
+		if len(container.Ports) > 0 {
+			info.Port = container.Ports[0].ContainerPort
+		}
+
+		// 获取环境变量（Ollama 绑定信息）
+		for _, env := range container.Env {
+			switch env.Name {
+			case "OLLAMA_POD_NAME":
+				info.OllamaPodName = env.Value
+			case "OLLAMA_NAMESPACE":
+				info.OllamaNamespace = env.Value
+			case "OLLAMA_MODEL":
+				info.OllamaModel = env.Value
+			}
+		}
+	}
+
+	// 获取存储信息（从 PVC）
+	if len(ds.Spec.Template.Spec.Volumes) > 0 {
+		for _, volume := range ds.Spec.Template.Spec.Volumes {
+			if volume.PersistentVolumeClaim != nil {
+				pvcName := volume.PersistentVolumeClaim.ClaimName
+				pvc, err := K8s.ClientSet.CoreV1().PersistentVolumeClaims(ds.Namespace).Get(context.TODO(), pvcName, metaV1.GetOptions{})
+				if err == nil {
+					if storage, ok := pvc.Spec.Resources.Requests[coreV1.ResourceStorage]; ok {
+						info.StorageSize = storage.String()
+					}
+				}
+			}
+		}
+	}
+
+	// 设置状态
+	if ds.Status.NumberReady == ds.Status.DesiredNumberScheduled && ds.Status.DesiredNumberScheduled > 0 {
+		info.Status = "Ready"
+	} else if ds.Status.NumberReady > 0 {
+		info.Status = "NotReady"
+	} else {
+		info.Status = "Pending"
+	}
+
+	return info
+}
+
 // QueryKnowledge 查询知识库（支持 ChromaDB、Milvus、Weaviate）
 func (k *knowledge) QueryKnowledge(podName, namespace, knowledgeType, collectionName, queryText string, topK int) (interface{}, error) {
 	// 根据知识库类型调用不同的查询方法
