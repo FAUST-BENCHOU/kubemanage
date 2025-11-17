@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+
 	"gorm.io/gorm"
 )
 
@@ -24,10 +25,27 @@ func (a *SysApi) MigrateTable(ctx context.Context, db *gorm.DB) error {
 
 func (a *SysApi) InitData(ctx context.Context, db *gorm.DB) error {
 	ok, err := a.IsInitData(ctx, db)
-	if err != nil || ok {
+	if err != nil {
 		return err
 	}
-	return db.WithContext(ctx).Create(SysApis).Error
+	if !ok {
+		// 首次初始化，插入所有接口
+		return db.WithContext(ctx).Create(SysApis).Error
+	}
+	// 数据库已初始化，增量添加新接口
+	// 检查 SysApis 中定义的接口是否都在数据库中，如果不在就插入
+	for _, api := range SysApis {
+		var existingApi SysApi
+		result := db.WithContext(ctx).Where("path = ? AND method = ?", api.Path, api.Method).First(&existingApi)
+		if result.Error != nil {
+			// 接口不存在，插入新接口
+			if err := db.WithContext(ctx).Create(&api).Error; err != nil {
+				// 忽略重复键错误（可能并发插入）
+				continue
+			}
+		}
+	}
+	return nil
 }
 
 func (a *SysApi) IsInitData(ctx context.Context, db *gorm.DB) (bool, error) {

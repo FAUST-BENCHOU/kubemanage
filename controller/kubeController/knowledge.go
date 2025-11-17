@@ -106,3 +106,42 @@ func (k *knowledge) UploadDocument(ctx *gin.Context) {
 	}
 	middleware.ResponseSuccess(ctx, data)
 }
+
+// QueryDocument 查询知识库
+// @Summary      查询知识库
+// @Description  在指定的知识库中查询相似文档，支持 ChromaDB、Milvus、Weaviate
+// @Tags         knowledge
+// @ID           /api/k8s/knowledge/query
+// @Accept       json
+// @Produce      json
+// @Param        body  body  kubeDto.KnowledgeQueryInput  true  "查询参数"
+// @Success      200   {object}  middleware.Response"{"code": 200, msg="","data": object}"
+// @Router       /api/k8s/knowledge/query [post]
+func (k *knowledge) QueryDocument(ctx *gin.Context) {
+	params := &kubeDto.KnowledgeQueryInput{}
+	if err := params.BindingValidParams(ctx); err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+
+	topK := params.TopK
+	if topK <= 0 {
+		topK = 5
+	}
+
+	data, err := kube.Knowledge.QueryKnowledge(
+		params.PodName,
+		params.NameSpace,
+		params.KnowledgeType,
+		params.CollectionName,
+		params.QueryText,
+		topK,
+	)
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.CreateError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.CreateError, err))
+		return
+	}
+	middleware.ResponseSuccess(ctx, data)
+}

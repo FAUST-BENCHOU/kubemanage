@@ -1054,3 +1054,298 @@ func (k *knowledge) batchAddToWeaviate(podName, namespace string, port int32, cl
 	json.Unmarshal(body, &responseData)
 	return responseData, nil
 }
+
+// QueryKnowledge 查询知识库（支持 ChromaDB、Milvus、Weaviate）
+func (k *knowledge) QueryKnowledge(podName, namespace, knowledgeType, collectionName, queryText string, topK int) (interface{}, error) {
+	// 根据知识库类型调用不同的查询方法
+	knowledgeType = strings.ToLower(knowledgeType)
+	switch knowledgeType {
+	case "chromadb", "chroma":
+		return k.queryChroma(podName, namespace, collectionName, queryText, topK)
+	case "milvus":
+		return k.queryMilvus(podName, namespace, collectionName, queryText, topK)
+	case "weaviate":
+		return k.queryWeaviate(podName, namespace, collectionName, queryText, topK)
+	default:
+		return nil, fmt.Errorf("不支持的知识库类型: %s，支持的类型: chromadb, milvus, weaviate", knowledgeType)
+	}
+}
+
+// ========== ChromaDB 查询 ==========
+
+// queryChroma 查询 ChromaDB
+func (k *knowledge) queryChroma(podName, namespace, collectionName, queryText string, topK int) (interface{}, error) {
+	pod, port, err := k.getPodInfo(podName, namespace, 8000)
+	if err != nil {
+		return nil, err
+	}
+
+	if topK <= 0 {
+		topK = 5
+	}
+
+	// 获取 Ollama 信息并生成查询向量
+	ollamaPodName, ollamaNamespace, ollamaModel := k.getOllamaInfo(pod, namespace)
+	if ollamaPodName == "" || ollamaModel == "" {
+		return nil, fmt.Errorf("查询需要向量嵌入，请确保知识库绑定了 Ollama")
+	}
+
+	embeddings, err := k.generateEmbeddings(ollamaPodName, ollamaNamespace, ollamaModel, []string{queryText})
+	if err != nil {
+		return nil, fmt.Errorf("生成查询向量失败: %v", err)
+	}
+	if len(embeddings) == 0 || len(embeddings[0]) == 0 {
+		return nil, fmt.Errorf("生成的查询向量为空")
+	}
+
+	collectionName = k.sanitizeCollectionName(collectionName)
+
+	// 获取集合的 UUID
+	collectionUUID, err := k.ensureChromaCollection(podName, namespace, port, collectionName)
+	if err != nil {
+		return nil, fmt.Errorf("获取集合信息失败: %v", err)
+	}
+
+	// Chroma v2 API 查询接口
+	tenant := "default_tenant"
+	database := "default_database"
+
+	requestBody := map[string]interface{}{
+		"query_embeddings": [][]float64{embeddings[0]},
+		"n_results":        topK,
+		"include":          []string{"documents", "metadatas", "distances"},
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("序列化请求体失败: %v", err)
+	}
+
+	req := K8s.ClientSet.CoreV1().RESTClient().Post().
+		Namespace(namespace).
+		Resource("pods").
+		Name(fmt.Sprintf("%s:%d", podName, port)).
+		SubResource("proxy").
+		Suffix(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections/%s/query", tenant, database, collectionUUID)).
+		Body(jsonData).
+		SetHeader("Content-Type", "application/json")
+
+	result := req.Do(context.TODO())
+	if result.Error() != nil {
+		return nil, fmt.Errorf("请求 Chroma API 失败: %v", result.Error())
+	}
+
+	body, err := result.Raw()
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	var responseData map[string]interface{}
+	if err := json.Unmarshal(body, &responseData); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %v, body: %s", err, string(body))
+	}
+
+	// 检查是否有错误
+	if errMsg, ok := responseData["error"].(string); ok && errMsg != "" {
+		return nil, fmt.Errorf("chroma API 返回错误: %s", errMsg)
+	}
+
+	// 检查结果是否为空，如果为空可能是集合中没有数据
+	if ids, ok := responseData["ids"].([]interface{}); ok && len(ids) > 0 {
+		if idList, ok := ids[0].([]interface{}); ok && len(idList) == 0 {
+			// 结果为空，可能是集合中没有数据或查询向量不匹配
+			// 尝试获取集合信息来确认是否有数据
+			return map[string]interface{}{
+				"status":          "success",
+				"knowledge_type":  "chromadb",
+				"collection_name": collectionName,
+				"query_text":      queryText,
+				"top_k":           topK,
+				"results":         responseData,
+				"warning":         "查询结果为空，请确认：1. 集合中是否有数据；2. 查询向量和存储向量是否使用相同的模型",
+			}, nil
+		}
+	}
+
+	return map[string]interface{}{
+		"status":          "success",
+		"knowledge_type":  "chromadb",
+		"collection_name": collectionName,
+		"query_text":      queryText,
+		"top_k":           topK,
+		"results":         responseData,
+	}, nil
+}
+
+// ========== Milvus 查询 ==========
+
+// queryMilvus 查询 Milvus
+func (k *knowledge) queryMilvus(podName, namespace, collectionName, queryText string, topK int) (interface{}, error) {
+	pod, port, err := k.getPodInfo(podName, namespace, 19530)
+	if err != nil {
+		return nil, err
+	}
+
+	if topK <= 0 {
+		topK = 5
+	}
+
+	// 获取 Ollama 信息并生成查询向量
+	ollamaPodName, ollamaNamespace, ollamaModel := k.getOllamaInfo(pod, namespace)
+	if ollamaPodName == "" || ollamaModel == "" {
+		return nil, fmt.Errorf("查询需要向量嵌入，请确保知识库绑定了 Ollama")
+	}
+
+	embeddings, err := k.generateEmbeddings(ollamaPodName, ollamaNamespace, ollamaModel, []string{queryText})
+	if err != nil {
+		return nil, fmt.Errorf("生成查询向量失败: %v", err)
+	}
+	if len(embeddings) == 0 || len(embeddings[0]) == 0 {
+		return nil, fmt.Errorf("生成的查询向量为空")
+	}
+
+	collectionName = k.sanitizeCollectionName(collectionName)
+
+	// Milvus 使用 HTTP API 进行查询
+	// 注意：Milvus 的 HTTP API 可能因版本而异，这里使用通用的搜索接口
+	requestBody := map[string]interface{}{
+		"collection_name": collectionName,
+		"vector":          embeddings[0],
+		"top_k":           topK,
+		"output_fields":   []string{"id", "text"},
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("序列化请求体失败: %v", err)
+	}
+
+	req := K8s.ClientSet.CoreV1().RESTClient().Post().
+		Namespace(namespace).
+		Resource("pods").
+		Name(fmt.Sprintf("%s:%d", podName, port)).
+		SubResource("proxy").
+		Suffix("/v1/vector/search").
+		Body(jsonData).
+		SetHeader("Content-Type", "application/json")
+
+	result := req.Do(context.TODO())
+	if result.Error() != nil {
+		return nil, fmt.Errorf("请求 Milvus API 失败: %v", result.Error())
+	}
+
+	body, err := result.Raw()
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	var responseData map[string]interface{}
+	if err := json.Unmarshal(body, &responseData); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %v, body: %s", err, string(body))
+	}
+
+	return map[string]interface{}{
+		"status":          "success",
+		"knowledge_type":  "milvus",
+		"collection_name": collectionName,
+		"query_text":      queryText,
+		"top_k":           topK,
+		"results":         responseData,
+	}, nil
+}
+
+// ========== Weaviate 查询 ==========
+
+// queryWeaviate 查询 Weaviate
+func (k *knowledge) queryWeaviate(podName, namespace, collectionName, queryText string, topK int) (interface{}, error) {
+	pod, port, err := k.getPodInfo(podName, namespace, 8080)
+	if err != nil {
+		return nil, err
+	}
+
+	if topK <= 0 {
+		topK = 5
+	}
+
+	// 获取 Ollama 信息并生成查询向量
+	ollamaPodName, ollamaNamespace, ollamaModel := k.getOllamaInfo(pod, namespace)
+	if ollamaPodName == "" || ollamaModel == "" {
+		return nil, fmt.Errorf("查询需要向量嵌入，请确保知识库绑定了 Ollama")
+	}
+
+	embeddings, err := k.generateEmbeddings(ollamaPodName, ollamaNamespace, ollamaModel, []string{queryText})
+	if err != nil {
+		return nil, fmt.Errorf("生成查询向量失败: %v", err)
+	}
+	if len(embeddings) == 0 || len(embeddings[0]) == 0 {
+		return nil, fmt.Errorf("生成的查询向量为空")
+	}
+
+	collectionName = k.sanitizeCollectionName(collectionName)
+
+	// Weaviate 使用 GraphQL 进行查询
+	// 使用向量搜索
+	graphQLQuery := fmt.Sprintf(`{
+		Get {
+			%s(nearVector: {
+				vector: %s
+			}, limit: %d) {
+				text
+				source
+				chunk
+				_additional {
+					distance
+				}
+			}
+		}
+	}`, collectionName, k.formatVectorForGraphQL(embeddings[0]), topK)
+
+	jsonData, err := json.Marshal(map[string]interface{}{
+		"query": graphQLQuery,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("序列化请求体失败: %v", err)
+	}
+
+	req := K8s.ClientSet.CoreV1().RESTClient().Post().
+		Namespace(namespace).
+		Resource("pods").
+		Name(fmt.Sprintf("%s:%d", podName, port)).
+		SubResource("proxy").
+		Suffix("/v1/graphql").
+		Body(jsonData).
+		SetHeader("Content-Type", "application/json")
+
+	result := req.Do(context.TODO())
+	if result.Error() != nil {
+		return nil, fmt.Errorf("请求 Weaviate API 失败: %v", result.Error())
+	}
+
+	body, err := result.Raw()
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	var responseData map[string]interface{}
+	if err := json.Unmarshal(body, &responseData); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %v, body: %s", err, string(body))
+	}
+
+	return map[string]interface{}{
+		"status":          "success",
+		"knowledge_type":  "weaviate",
+		"collection_name": collectionName,
+		"query_text":      queryText,
+		"top_k":           topK,
+		"results":         responseData,
+	}, nil
+}
+
+// formatVectorForGraphQL 将向量格式化为 GraphQL 格式
+func (k *knowledge) formatVectorForGraphQL(vector []float64) string {
+	var parts []string
+	for _, v := range vector {
+		parts = append(parts, fmt.Sprintf("%.6f", v))
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}

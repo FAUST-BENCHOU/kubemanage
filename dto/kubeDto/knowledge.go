@@ -32,10 +32,24 @@ type KnowledgeUploadDocumentInput struct {
 	ChunkSize      int    `form:"chunk_size" comment:"分块大小（可选，默认1000）"`
 }
 
+// KnowledgeQueryInput 知识库查询输入参数
+type KnowledgeQueryInput struct {
+	PodName        string `json:"pod_name" form:"pod_name" comment:"知识库Pod名称" validate:"required"`
+	NameSpace      string `json:"namespace" form:"namespace" comment:"命名空间" validate:"required"`
+	KnowledgeType  string `json:"knowledge_type" form:"knowledge_type" comment:"知识库类型: chromadb, milvus, weaviate" validate:"required"`
+	CollectionName string `json:"collection_name" form:"collection_name" comment:"集合名称" validate:"required"`
+	QueryText      string `json:"query_text" form:"query_text" comment:"查询文本" validate:"required"`
+	TopK           int    `json:"top_k" form:"top_k" comment:"返回结果数量（可选，默认5）"`
+}
+
 func (params *KnowledgeDeployInput) BindingValidParams(c *gin.Context) error {
 	return pkg.DefaultGetValidParams(c, params)
 }
 
 func (params *KnowledgeUploadDocumentInput) BindingValidParams(c *gin.Context) error {
+	return pkg.DefaultGetValidParams(c, params)
+}
+
+func (params *KnowledgeQueryInput) BindingValidParams(c *gin.Context) error {
 	return pkg.DefaultGetValidParams(c, params)
 }

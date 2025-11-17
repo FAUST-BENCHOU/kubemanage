@@ -326,6 +326,7 @@ var SysApis = []SysApi{
 	// 知识库相关接口
 	{Path: "/api/k8s/knowledge/deploy", Description: "部署知识库到指定节点", ApiGroup: "Kubernetes", Method: "POST"},
 	{Path: "/api/k8s/knowledge/document/upload", Description: "上传文档到知识库", ApiGroup: "Kubernetes", Method: "POST"},
+	{Path: "/api/k8s/knowledge/query", Description: "查询知识库", ApiGroup: "Kubernetes", Method: "POST"},
 }
 
 // CMDBHostGroupInitData 初始化主机组
