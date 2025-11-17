@@ -138,6 +138,7 @@ func (k *kubeRouter) initRoutes(ginEngine *gin.RouterGroup) {
 		aiRoute.POST("/chat_with_kb", AI.ChatWithKB)
 		aiRoute.GET("/mcp/servers", MCPServer.ListServers)
 		aiRoute.GET("/mcp/tools", MCPServer.ListServerTools)
+		aiRoute.POST("/mcp/servers", MCPServer.CreateServer)
 	}
 
 }

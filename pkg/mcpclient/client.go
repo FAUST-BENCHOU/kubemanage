@@ -77,8 +77,41 @@ func (c *Client) EnsureSession(ctx context.Context) (*mcp.ClientSession, error) 
 		}
 	}()
 
-	cmd := exec.CommandContext(connectCtx, c.cfg.Command, c.cfg.Args...)
+	// 构建命令参数：如果是 docker run，需要将 env 转换为 -e 参数
+	args := append([]string(nil), c.cfg.Args...)
 	if len(c.cfg.Env) > 0 {
+		// 检测是否是 docker run 命令
+		isDockerRun := c.cfg.Command == "docker" && len(args) > 0 && args[0] == "run"
+		if isDockerRun {
+			// 对于 docker run，将环境变量转换为 -e 参数
+			// 找到 "run" 之后的位置插入 -e 参数（通常在 --rm 或 -i 之前）
+			insertPos := 1
+			for i, arg := range args {
+				if i > 0 && (arg == "--rm" || arg == "-i" || arg == "-d" || arg == "-it") {
+					insertPos = i
+					break
+				}
+			}
+			// 构建 -e 参数列表
+			envArgs := make([]string, 0, len(c.cfg.Env)*2)
+			for k, v := range c.cfg.Env {
+				envArgs = append(envArgs, "-e", fmt.Sprintf("%s=%s", k, v))
+			}
+			// 插入环境变量参数
+			newArgs := make([]string, 0, len(args)+len(envArgs))
+			newArgs = append(newArgs, args[:insertPos]...)
+			newArgs = append(newArgs, envArgs...)
+			newArgs = append(newArgs, args[insertPos:]...)
+			args = newArgs
+		} else {
+			// 对于非 docker 命令，使用传统的环境变量方式
+			// 这种情况会在 exec.CommandContext 之后通过 cmd.Env 设置
+		}
+	}
+
+	cmd := exec.CommandContext(connectCtx, c.cfg.Command, args...)
+	// 对于非 docker 命令，设置环境变量
+	if len(c.cfg.Env) > 0 && !(c.cfg.Command == "docker" && len(c.cfg.Args) > 0 && c.cfg.Args[0] == "run") {
 		env := os.Environ()
 		for k, v := range c.cfg.Env {
 			env = append(env, fmt.Sprintf("%s=%s", k, v))
