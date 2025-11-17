@@ -10,6 +10,7 @@ import (
 	"github.com/noovertime7/kubemanage/cmd/app/config"
 	"github.com/noovertime7/kubemanage/cmd/app/options"
 	"github.com/noovertime7/kubemanage/pkg/logger"
+	"github.com/noovertime7/kubemanage/pkg/mcpclient"
 )
 
 var CoreV1 CoreService
@@ -26,6 +27,9 @@ func Setup(o *options.Options) {
 
 	Log = logger.New(logger.LG)
 	CoreV1 = New(config.SysConfig, o.Factory)
+	if err := mcpclient.InitFromConfig(config.SysConfig.MCP); err != nil {
+		Log.ErrorWithErr("初始化 MCP 客户端失败", err)
+	}
 	if config.SysConfig.CMDB.HostCheck.HostCheckEnable {
 		startChecker()
 	}

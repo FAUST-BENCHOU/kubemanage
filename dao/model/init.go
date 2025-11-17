@@ -331,6 +331,8 @@ var SysApis = []SysApi{
 	{Path: "/api/k8s/knowledge/query", Description: "查询知识库", ApiGroup: "Kubernetes", Method: "POST"},
 	// AI 相关接口
 	{Path: "/api/ai/chat_with_kb", Description: "结合知识库进行聊天", ApiGroup: "AI", Method: "POST"},
+	{Path: "/api/ai/mcp/servers", Description: "返回MCP server配置", ApiGroup: "AI", Method: "GET"},
+	{Path: "/api/ai/mcp/tools", Description: "查看可用工具列表", ApiGroup: "AI", Method: "GET"},
 }
 
 // CMDBHostGroupInitData 初始化主机组

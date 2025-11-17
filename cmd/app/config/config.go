@@ -7,6 +7,7 @@ type Config struct {
 	Mysql   MysqlOptions   `mapstructure:"mysql"`
 	CMDB    CMDBOptions    `mapstructure:"cmdb"`
 	Log     LogConfig      `mapstructure:"log"`
+	MCP     MCPConfig      `mapstructure:"mcp"`
 }
 
 type DefaultOptions struct {
@@ -45,4 +46,31 @@ type LogConfig struct {
 	MaxSize    int    `mapstructure:"max_size"`
 	MaxAge     int    `mapstructure:"max_age"`
 	MaxBackups int    `mapstructure:"max_backups"`
+}
+
+type MCPConfig struct {
+	Enable                bool                `mapstructure:"enable"`
+	ImplementationName    string              `mapstructure:"implementationName"`
+	ImplementationVersion string              `mapstructure:"implementationVersion"`
+	StartupTimeout        string              `mapstructure:"startupTimeout"`
+	KeepAlive             string              `mapstructure:"keepAlive"`
+	DefaultServer         string              `mapstructure:"defaultServer"`
+	DefaultTool           string              `mapstructure:"defaultTool"`
+	Command               string              `mapstructure:"command"` // 兼容旧配置
+	Args                  []string            `mapstructure:"args"`    // 兼容旧配置
+	Env                   map[string]string   `mapstructure:"env"`     // 兼容旧配置
+	Servers               []MCPServerTemplate `mapstructure:"servers"`
+}
+
+type MCPServerTemplate struct {
+	Name        string            `mapstructure:"name"`
+	DisplayName string            `mapstructure:"displayName"`
+	Description string            `mapstructure:"description"`
+	Image       string            `mapstructure:"image"`
+	Command     string            `mapstructure:"command"`
+	Args        []string          `mapstructure:"args"`
+	Env         map[string]string `mapstructure:"env"`
+	DefaultTool string            `mapstructure:"defaultTool"`
+	Homepage    string            `mapstructure:"homepage"`
+	Tags        []string          `mapstructure:"tags"`
 }
