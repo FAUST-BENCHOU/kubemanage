@@ -127,6 +127,7 @@ func (k *kubeRouter) initRoutes(ginEngine *gin.RouterGroup) {
 		// 知识库接口
 		k8sRoute.POST("/knowledge/deploy", Knowledge.DeployKnowledge)
 		k8sRoute.GET("/knowledge/list", Knowledge.ListKnowledge)
+		k8sRoute.GET("/knowledge/detail", Knowledge.GetKnowledgeDetail)
 		k8sRoute.POST("/knowledge/document/upload", Knowledge.UploadDocument)
 		k8sRoute.POST("/knowledge/query", Knowledge.QueryDocument)
 	}

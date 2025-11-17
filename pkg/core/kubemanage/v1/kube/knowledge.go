@@ -1297,6 +1297,243 @@ func (k *knowledge) convertDaemonSetToInfo(ds *appsV1.DaemonSet, nodeName string
 	return info
 }
 
+// GetKnowledgeDetail 获取知识库详情
+func (k *knowledge) GetKnowledgeDetail(name, namespace string) (interface{}, error) {
+	// 先尝试获取 Deployment
+	deploy, err := K8s.ClientSet.AppsV1().Deployments(namespace).Get(context.TODO(), name, metaV1.GetOptions{})
+	if err == nil {
+		// 检查是否是知识库（通过标签判断）
+		if deploy.Labels["app"] == "knowledge" && deploy.Labels["managed"] == "kubemanage" {
+			// 转换为详细信息
+			detail := k.convertDeploymentToDetail(deploy)
+			return detail, nil
+		}
+	}
+
+	// 如果不是 Deployment 或不是知识库，尝试获取 DaemonSet
+	ds, err := K8s.ClientSet.AppsV1().DaemonSets(namespace).Get(context.TODO(), name, metaV1.GetOptions{})
+	if err == nil {
+		// 检查是否是知识库（通过标签判断）
+		if ds.Labels["app"] == "knowledge" && ds.Labels["managed"] == "kubemanage" {
+			// 转换为详细信息
+			detail := k.convertDaemonSetToDetail(ds)
+			return detail, nil
+		}
+	}
+
+	return nil, fmt.Errorf("未找到知识库 %s/%s", namespace, name)
+}
+
+// KnowledgeDetail 知识库详情
+type KnowledgeDetail struct {
+	Name             string                 `json:"name"`
+	Namespace        string                 `json:"namespace"`
+	Type             string                 `json:"type"` // deployment 或 daemonset
+	Image            string                 `json:"image"`
+	Port             int32                  `json:"port"`
+	NodeSelector     map[string]string      `json:"node_selector"`
+	Status           string                 `json:"status"`
+	Pods             int32                  `json:"pods"`
+	ReadyPods        int32                  `json:"ready_pods"`
+	OllamaPodName    string                 `json:"ollama_pod_name,omitempty"`
+	OllamaModel      string                 `json:"ollama_model,omitempty"`
+	OllamaNamespace  string                 `json:"ollama_namespace,omitempty"`
+	StorageSize      string                 `json:"storage_size,omitempty"`
+	Labels           map[string]string      `json:"labels"`
+	Annotations      map[string]string      `json:"annotations"`
+	CreatedAt        string                 `json:"created_at"`
+	ResourceLimits   map[string]interface{} `json:"resource_limits,omitempty"`
+	ResourceRequests map[string]interface{} `json:"resource_requests,omitempty"`
+	ServiceName      string                 `json:"service_name,omitempty"`
+	PVCName          string                 `json:"pvc_name,omitempty"`
+}
+
+// convertDeploymentToDetail 转换 Deployment 为详细信息
+func (k *knowledge) convertDeploymentToDetail(deploy *appsV1.Deployment) *KnowledgeDetail {
+	detail := &KnowledgeDetail{
+		Name:         deploy.Name,
+		Namespace:    deploy.Namespace,
+		Type:         "deployment",
+		NodeSelector: deploy.Spec.Template.Spec.NodeSelector,
+		Pods:         *deploy.Spec.Replicas,
+		ReadyPods:    deploy.Status.ReadyReplicas,
+		Labels:       deploy.Labels,
+		Annotations:  deploy.Annotations,
+	}
+
+	// 设置创建时间
+	if !deploy.CreationTimestamp.IsZero() {
+		detail.CreatedAt = deploy.CreationTimestamp.Format(time.RFC3339)
+	}
+
+	// 获取容器信息
+	if len(deploy.Spec.Template.Spec.Containers) > 0 {
+		container := deploy.Spec.Template.Spec.Containers[0]
+		detail.Image = container.Image
+		if len(container.Ports) > 0 {
+			detail.Port = container.Ports[0].ContainerPort
+		}
+
+		// 获取环境变量（Ollama 绑定信息）
+		for _, env := range container.Env {
+			switch env.Name {
+			case "OLLAMA_POD_NAME":
+				detail.OllamaPodName = env.Value
+			case "OLLAMA_NAMESPACE":
+				detail.OllamaNamespace = env.Value
+			case "OLLAMA_MODEL":
+				detail.OllamaModel = env.Value
+			}
+		}
+
+		// 获取资源限制和请求
+		if container.Resources.Limits != nil {
+			detail.ResourceLimits = make(map[string]interface{})
+			if cpu, ok := container.Resources.Limits[coreV1.ResourceCPU]; ok {
+				detail.ResourceLimits["cpu"] = cpu.String()
+			}
+			if memory, ok := container.Resources.Limits[coreV1.ResourceMemory]; ok {
+				detail.ResourceLimits["memory"] = memory.String()
+			}
+		}
+		if container.Resources.Requests != nil {
+			detail.ResourceRequests = make(map[string]interface{})
+			if cpu, ok := container.Resources.Requests[coreV1.ResourceCPU]; ok {
+				detail.ResourceRequests["cpu"] = cpu.String()
+			}
+			if memory, ok := container.Resources.Requests[coreV1.ResourceMemory]; ok {
+				detail.ResourceRequests["memory"] = memory.String()
+			}
+		}
+	}
+
+	// 获取存储信息（从 PVC）
+	if len(deploy.Spec.Template.Spec.Volumes) > 0 {
+		for _, volume := range deploy.Spec.Template.Spec.Volumes {
+			if volume.PersistentVolumeClaim != nil {
+				detail.PVCName = volume.PersistentVolumeClaim.ClaimName
+				pvc, err := K8s.ClientSet.CoreV1().PersistentVolumeClaims(deploy.Namespace).Get(context.TODO(), detail.PVCName, metaV1.GetOptions{})
+				if err == nil {
+					if storage, ok := pvc.Spec.Resources.Requests[coreV1.ResourceStorage]; ok {
+						detail.StorageSize = storage.String()
+					}
+				}
+			}
+		}
+	}
+
+	// 获取 Service 名称
+	serviceName := fmt.Sprintf("%s-svc", deploy.Name)
+	_, err := K8s.ClientSet.CoreV1().Services(deploy.Namespace).Get(context.TODO(), serviceName, metaV1.GetOptions{})
+	if err == nil {
+		detail.ServiceName = serviceName
+	}
+
+	// 设置状态
+	if deploy.Status.ReadyReplicas == *deploy.Spec.Replicas && *deploy.Spec.Replicas > 0 {
+		detail.Status = "Ready"
+	} else if deploy.Status.ReadyReplicas > 0 {
+		detail.Status = "NotReady"
+	} else {
+		detail.Status = "Pending"
+	}
+
+	return detail
+}
+
+// convertDaemonSetToDetail 转换 DaemonSet 为详细信息
+func (k *knowledge) convertDaemonSetToDetail(ds *appsV1.DaemonSet) *KnowledgeDetail {
+	detail := &KnowledgeDetail{
+		Name:         ds.Name,
+		Namespace:    ds.Namespace,
+		Type:         "daemonset",
+		NodeSelector: ds.Spec.Template.Spec.NodeSelector,
+		Pods:         ds.Status.DesiredNumberScheduled,
+		ReadyPods:    ds.Status.NumberReady,
+		Labels:       ds.Labels,
+		Annotations:  ds.Annotations,
+	}
+
+	// 设置创建时间
+	if !ds.CreationTimestamp.IsZero() {
+		detail.CreatedAt = ds.CreationTimestamp.Format(time.RFC3339)
+	}
+
+	// 获取容器信息
+	if len(ds.Spec.Template.Spec.Containers) > 0 {
+		container := ds.Spec.Template.Spec.Containers[0]
+		detail.Image = container.Image
+		if len(container.Ports) > 0 {
+			detail.Port = container.Ports[0].ContainerPort
+		}
+
+		// 获取环境变量（Ollama 绑定信息）
+		for _, env := range container.Env {
+			switch env.Name {
+			case "OLLAMA_POD_NAME":
+				detail.OllamaPodName = env.Value
+			case "OLLAMA_NAMESPACE":
+				detail.OllamaNamespace = env.Value
+			case "OLLAMA_MODEL":
+				detail.OllamaModel = env.Value
+			}
+		}
+
+		// 获取资源限制和请求
+		if container.Resources.Limits != nil {
+			detail.ResourceLimits = make(map[string]interface{})
+			if cpu, ok := container.Resources.Limits[coreV1.ResourceCPU]; ok {
+				detail.ResourceLimits["cpu"] = cpu.String()
+			}
+			if memory, ok := container.Resources.Limits[coreV1.ResourceMemory]; ok {
+				detail.ResourceLimits["memory"] = memory.String()
+			}
+		}
+		if container.Resources.Requests != nil {
+			detail.ResourceRequests = make(map[string]interface{})
+			if cpu, ok := container.Resources.Requests[coreV1.ResourceCPU]; ok {
+				detail.ResourceRequests["cpu"] = cpu.String()
+			}
+			if memory, ok := container.Resources.Requests[coreV1.ResourceMemory]; ok {
+				detail.ResourceRequests["memory"] = memory.String()
+			}
+		}
+	}
+
+	// 获取存储信息（从 PVC）
+	if len(ds.Spec.Template.Spec.Volumes) > 0 {
+		for _, volume := range ds.Spec.Template.Spec.Volumes {
+			if volume.PersistentVolumeClaim != nil {
+				detail.PVCName = volume.PersistentVolumeClaim.ClaimName
+				pvc, err := K8s.ClientSet.CoreV1().PersistentVolumeClaims(ds.Namespace).Get(context.TODO(), detail.PVCName, metaV1.GetOptions{})
+				if err == nil {
+					if storage, ok := pvc.Spec.Resources.Requests[coreV1.ResourceStorage]; ok {
+						detail.StorageSize = storage.String()
+					}
+				}
+			}
+		}
+	}
+
+	// 获取 Service 名称
+	serviceName := fmt.Sprintf("%s-svc", ds.Name)
+	_, err := K8s.ClientSet.CoreV1().Services(ds.Namespace).Get(context.TODO(), serviceName, metaV1.GetOptions{})
+	if err == nil {
+		detail.ServiceName = serviceName
+	}
+
+	// 设置状态
+	if ds.Status.NumberReady == ds.Status.DesiredNumberScheduled && ds.Status.DesiredNumberScheduled > 0 {
+		detail.Status = "Ready"
+	} else if ds.Status.NumberReady > 0 {
+		detail.Status = "NotReady"
+	} else {
+		detail.Status = "Pending"
+	}
+
+	return detail
+}
+
 // QueryKnowledge 查询知识库（支持 ChromaDB、Milvus、Weaviate）
 func (k *knowledge) QueryKnowledge(podName, namespace, knowledgeType, collectionName, queryText string, topK int) (interface{}, error) {
 	// 根据知识库类型调用不同的查询方法

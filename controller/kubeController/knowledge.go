@@ -187,3 +187,30 @@ func (k *knowledge) ListKnowledge(ctx *gin.Context) {
 	}
 	middleware.ResponseSuccess(ctx, data)
 }
+
+// GetKnowledgeDetail 获取知识库详情
+// @Summary      获取知识库详情
+// @Description  获取指定知识库的详细信息
+// @Tags         knowledge
+// @ID           /api/k8s/knowledge/detail
+// @Accept       json
+// @Produce      json
+// @Param        name       query  string  true  "知识库部署名称"
+// @Param        namespace  query  string  true  "命名空间"
+// @Success      200        {object}  middleware.Response"{"code": 200, msg="","data": object}"
+// @Router       /api/k8s/knowledge/detail [get]
+func (k *knowledge) GetKnowledgeDetail(ctx *gin.Context) {
+	params := &kubeDto.KnowledgeNameNS{}
+	if err := params.BindingValidParams(ctx); err != nil {
+		v1.Log.ErrorWithCode(globalError.ParamBindError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.ParamBindError, err))
+		return
+	}
+	data, err := kube.Knowledge.GetKnowledgeDetail(params.Name, params.NameSpace)
+	if err != nil {
+		v1.Log.ErrorWithCode(globalError.GetError, err)
+		middleware.ResponseError(ctx, globalError.NewGlobalError(globalError.GetError, err))
+		return
+	}
+	middleware.ResponseSuccess(ctx, data)
+}

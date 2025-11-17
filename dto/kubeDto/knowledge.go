@@ -53,3 +53,13 @@ func (params *KnowledgeUploadDocumentInput) BindingValidParams(c *gin.Context) e
 func (params *KnowledgeQueryInput) BindingValidParams(c *gin.Context) error {
 	return pkg.DefaultGetValidParams(c, params)
 }
+
+// KnowledgeNameNS 知识库名称和命名空间
+type KnowledgeNameNS struct {
+	Name      string `json:"name" form:"name" comment:"知识库部署名称" validate:"required"`
+	NameSpace string `json:"namespace" form:"namespace" comment:"命名空间" validate:"required"`
+}
+
+func (params *KnowledgeNameNS) BindingValidParams(c *gin.Context) error {
+	return pkg.DefaultGetValidParams(c, params)
+}
