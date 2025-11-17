@@ -132,4 +132,10 @@ func (k *kubeRouter) initRoutes(ginEngine *gin.RouterGroup) {
 		k8sRoute.POST("/knowledge/query", Knowledge.QueryDocument)
 	}
 
+	// AI 相关接口
+	aiRoute := ginEngine.Group("/ai")
+	{
+		aiRoute.POST("/chat_with_kb", AI.ChatWithKB)
+	}
+
 }

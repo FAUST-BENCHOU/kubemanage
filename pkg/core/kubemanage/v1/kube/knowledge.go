@@ -1828,3 +1828,151 @@ func (k *knowledge) formatVectorForGraphQL(vector []float64) string {
 	}
 	return "[" + strings.Join(parts, ",") + "]"
 }
+
+// ChatWithKnowledgeBase 结合知识库进行聊天
+func (k *knowledge) ChatWithKnowledgeBase(params *kubeDto.ChatWithKBInput) (interface{}, error) {
+	// 设置默认值
+	topK := params.TopK
+	if topK <= 0 {
+		topK = 5
+	}
+
+	// 1. 查询知识库获取相关文档
+	queryResult, err := k.QueryKnowledge(
+		params.KnowledgePodName,
+		params.KnowledgeNamespace,
+		params.KnowledgeType,
+		params.CollectionName,
+		params.Question,
+		topK,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("查询知识库失败: %v", err)
+	}
+
+	// 2. 从查询结果中提取文档内容
+	documents := k.extractDocumentsFromQueryResult(queryResult, params.KnowledgeType)
+	if len(documents) == 0 {
+		return nil, fmt.Errorf("知识库中未找到相关文档，请确认集合中是否有数据")
+	}
+
+	// 3. 构建包含上下文的系统提示词
+	systemPrompt := k.buildSystemPromptWithContext(params.SystemPrompt, documents)
+
+	// 4. 构建消息列表
+	messages := []kubeDto.OllamaChatMessage{
+		{
+			Role:    "system",
+			Content: systemPrompt,
+		},
+		{
+			Role:    "user",
+			Content: params.Question,
+		},
+	}
+
+	// 5. 调用 Ollama Chat API
+	chatResult, err := Ollama.Chat(
+		params.OllamaPodName,
+		params.OllamaNamespace,
+		params.OllamaModel,
+		messages,
+		params.Stream,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("调用模型失败: %v", err)
+	}
+
+	// 6. 返回结果（包含查询到的文档和模型回答）
+	return map[string]interface{}{
+		"answer":            chatResult,
+		"related_documents": documents,
+		"question":          params.Question,
+		"top_k":             topK,
+	}, nil
+}
+
+// extractDocumentsFromQueryResult 从查询结果中提取文档内容
+func (k *knowledge) extractDocumentsFromQueryResult(queryResult interface{}, knowledgeType string) []string {
+	var documents []string
+
+	queryResultMap, ok := queryResult.(map[string]interface{})
+	if !ok {
+		return documents
+	}
+
+	results, ok := queryResultMap["results"].(map[string]interface{})
+	if !ok {
+		return documents
+	}
+
+	knowledgeType = strings.ToLower(knowledgeType)
+	switch knowledgeType {
+	case "chromadb", "chroma":
+		// ChromaDB 返回格式: {"ids": [[...]], "documents": [[...]], "metadatas": [[...]], "distances": [[...]]}
+		if docs, ok := results["documents"].([]interface{}); ok && len(docs) > 0 {
+			if docList, ok := docs[0].([]interface{}); ok {
+				for _, doc := range docList {
+					if docStr, ok := doc.(string); ok && docStr != "" {
+						documents = append(documents, docStr)
+					}
+				}
+			}
+		}
+	case "milvus":
+		// Milvus 返回格式可能不同，需要根据实际 API 调整
+		if data, ok := results["data"].([]interface{}); ok {
+			for _, item := range data {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					if text, ok := itemMap["text"].(string); ok && text != "" {
+						documents = append(documents, text)
+					}
+				}
+			}
+		}
+	case "weaviate":
+		// Weaviate 返回格式: {"data": {"Get": {"ClassName": [...]}}}
+		if data, ok := results["data"].(map[string]interface{}); ok {
+			if get, ok := data["Get"].(map[string]interface{}); ok {
+				for _, classData := range get {
+					if items, ok := classData.([]interface{}); ok {
+						for _, item := range items {
+							if itemMap, ok := item.(map[string]interface{}); ok {
+								if props, ok := itemMap["properties"].(map[string]interface{}); ok {
+									if text, ok := props["text"].(string); ok && text != "" {
+										documents = append(documents, text)
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return documents
+}
+
+// buildSystemPromptWithContext 构建包含上下文的系统提示词
+func (k *knowledge) buildSystemPromptWithContext(customPrompt string, documents []string) string {
+	var prompt strings.Builder
+
+	if customPrompt != "" {
+		prompt.WriteString(customPrompt)
+		prompt.WriteString("\n\n")
+	} else {
+		prompt.WriteString("你是一个智能助手，能够基于提供的知识库内容回答问题。")
+		prompt.WriteString("请仔细阅读以下相关文档，然后回答用户的问题。")
+		prompt.WriteString("如果文档中没有相关信息，请如实告知用户。\n\n")
+	}
+
+	prompt.WriteString("相关文档内容：\n")
+	for i, doc := range documents {
+		prompt.WriteString(fmt.Sprintf("文档 %d:\n%s\n\n", i+1, doc))
+	}
+
+	prompt.WriteString("请基于以上文档内容回答用户的问题。")
+
+	return prompt.String()
+}
