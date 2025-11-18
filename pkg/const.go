@@ -8,10 +8,13 @@ const (
 )
 
 const (
-	LoginURL    = "/api/user/login"
-	LogoutURL   = "/api/user/logout"
-	WebShellURL = "/api/k8s/pod/webshell"
+	LoginURL     = "/api/user/login"
+	LogoutURL    = "/api/user/logout"
+	WebShellURL  = "/api/k8s/pod/webshell"
+	HostWebShell = "/api/cmdb/webshell"
 )
+
+const TimeFormat = "2006-01-02 15:04:05"
 
 var (
 	AdminDefaultAuth      uint = 111

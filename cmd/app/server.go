@@ -7,17 +7,17 @@ import (
 	"os"
 	"time"
 
-	v1 "github.com/noovertime7/kubemanage/pkg/core/kubemanage/v1"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
 	"github.com/noovertime7/kubemanage/cmd/app/config"
 	"github.com/noovertime7/kubemanage/cmd/app/options"
+	v1 "github.com/noovertime7/kubemanage/pkg/core/kubemanage/v1"
 	"github.com/noovertime7/kubemanage/pkg/core/kubemanage/v1/kube"
 	"github.com/noovertime7/kubemanage/pkg/logger"
 	"github.com/noovertime7/kubemanage/pkg/utils"
 	"github.com/noovertime7/kubemanage/router"
+	"github.com/noovertime7/kubemanage/runtime"
 )
 
 func NewServerCommand() *cobra.Command {
@@ -94,9 +94,11 @@ func runServer(opt *options.Options) {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shut down the server with a timeout of 5 seconds.
-	quit := utils.SetupSignalHandler()
-	<-quit
+	<-runtime.SystemContext.Done()
+
+	// Close
+	runtime.CloserHandler.Close()
+
 	logger.LG.Info("shutting kubemanage server down ...")
 
 	// The context is used to inform the server it has 5 seconds to finish the request

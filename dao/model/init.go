@@ -2,26 +2,31 @@ package model
 
 import (
 	"database/sql"
+
 	adapter "github.com/casbin/gorm-adapter/v3"
-	"github.com/noovertime7/kubemanage/pkg"
 	uuid "github.com/satori/go.uuid"
+
+	"github.com/noovertime7/kubemanage/pkg"
+	"github.com/noovertime7/kubemanage/pkg/utils"
 )
 
-// 初始化顺序
+// 初始化顺序 顺序不能乱
 const (
 	SysUserOrder = iota
+	DepartmentOrder
+	SysAuthorityOrder
 	MenuAuthorityOrder
 	SysBaseMenuOrder
-	SysAuthorityOrder
 	SysApisInitOrder
 	CasbinInitOrder
 	OperatorationOrder
 	WorkFlowOrder
+	CMDBInitOrder
 )
 
 // SysUserEntities 用户初始化数据
 var (
-	SysUserEntities = []*SysUser{
+	SysUserEntities = []SysUser{
 		{
 			UUID:        uuid.NewV4(),
 			UserName:    "admin",
@@ -32,10 +37,10 @@ var (
 			BaseColor:   "#fff",
 			ActiveColor: "#1890ff",
 			AuthorityId: pkg.AdminDefaultAuth,
-			Phone:       "12345678901",
-			Email:       "test@qq.com",
+			Phone:       sql.NullString{String: "12345678901", Valid: true},
+			Email:       sql.NullString{String: "test@qq.com", Valid: true},
 			Enable:      1,
-			Status:      sql.NullInt64{Int64: 0, Valid: true},
+			Status:      sql.NullInt64{Int64: 2, Valid: true},
 		},
 		{
 			UUID:        uuid.NewV4(),
@@ -47,10 +52,10 @@ var (
 			BaseColor:   "#fff",
 			ActiveColor: "#1890ff",
 			AuthorityId: pkg.UserDefaultAuth,
-			Phone:       "12345678901",
-			Email:       "test@qq.com",
+			Phone:       sql.NullString{String: "12345678901", Valid: true},
+			Email:       sql.NullString{String: "test@qq.com", Valid: true},
 			Enable:      1,
-			Status:      sql.NullInt64{Int64: 0, Valid: true},
+			Status:      sql.NullInt64{Int64: 2, Valid: true},
 		},
 		{
 			UUID:        uuid.NewV4(),
@@ -62,10 +67,10 @@ var (
 			BaseColor:   "#fff",
 			ActiveColor: "#1890ff",
 			AuthorityId: pkg.UserSubDefaultAuth,
-			Phone:       "12345678901",
-			Email:       "test@qq.com",
+			Phone:       sql.NullString{String: "12345678901", Valid: true},
+			Email:       sql.NullString{String: "test@gmail.com", Valid: true},
 			Enable:      1,
-			Status:      sql.NullInt64{Int64: 0, Valid: true},
+			Status:      sql.NullInt64{Int64: 2, Valid: true},
 		},
 	}
 )
@@ -74,26 +79,31 @@ var (
 var (
 	SysBaseMenuEntities = []SysBaseMenu{
 		// 根菜单
-		{MenuLevel: 0, Hidden: false, Disabled: true, ParentId: "0", Path: "dashboard", Name: "仪表盘", Sort: 1, Meta: Meta{Title: "仪表盘", Icon: "odometer"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "0", Path: "cmdb", Name: "资产中心", Sort: 3, Meta: Meta{Title: "资产中心", Icon: "menu"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "0", Path: "kubernetes", Name: "容器管理", Sort: 4, Meta: Meta{Title: "容器管理", Icon: "menu"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "0", Path: "devops", Name: "应用发布", Sort: 5, Meta: Meta{Title: "应用发布", Icon: "compass"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "0", Path: "setting", Name: "系统设置", Sort: 6, Meta: Meta{Title: "系统设置", Icon: "setting"}},
+		{MenuLevel: 2, Hidden: false, Disabled: true, ParentId: "0", Path: "/dashboard", Name: "仪表盘", Sort: 1, Meta: Meta{Title: "仪表盘", Icon: "odometer"}},
+		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "0", Path: "/cmdb", Name: "资产中心", Sort: 3, Meta: Meta{Title: "资产中心", Icon: "monitor"}},
+		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "0", Path: "/kubernetes", Name: "容器管理", Sort: 4, Meta: Meta{Title: "容器管理", Icon: "menu"}},
+		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "0", Path: "/devops", Name: "应用发布", Sort: 5, Meta: Meta{Title: "应用发布", Icon: "compass"}},
+		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "0", Path: "/setting", Name: "系统设置", Sort: 6, Meta: Meta{Title: "系统设置", Icon: "setting"}},
 		//子菜单 ParentId对应跟菜单顺序 且不需要icon
 		// 资产中心子菜单
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "2", Path: "host", Name: "主机管理", Sort: 0, Meta: Meta{Title: "主机管理"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "2", Path: "secret", Name: "授权管理", Sort: 1, Meta: Meta{Title: "授权管理"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "2", Path: "/host", Name: "主机管理", Sort: 0, Meta: Meta{Title: "主机管理"}},
+		{MenuLevel: 3, Hidden: true, Disabled: false, ParentId: "2", Path: "/host/webshell", Name: "网页终端", Sort: 1, Meta: Meta{Title: "网页终端"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "2", Path: "/secret", Name: "认证信息", Sort: 1, Meta: Meta{Title: "认证信息"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "2", Path: "/authProxy", Name: "授权管理", Sort: 2, Meta: Meta{Title: "授权管理"}},
 		// 容器管理子菜单
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "3", Path: "cluster", Name: "集群管理", Sort: 0, Meta: Meta{Title: "集群管理"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "3", Path: "deployment", Name: "工作负载", Sort: 1, Meta: Meta{Title: "工作负载"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "3", Path: "service", Name: "服务发现", Sort: 2, Meta: Meta{Title: "服务发现"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "3", Path: "node", Name: "节点管理", Sort: 3, Meta: Meta{Title: "节点管理"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "3", Path: "config", Name: "配置中心", Sort: 4, Meta: Meta{Title: "配置中心"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "3", Path: "events", Name: "事件中心", Sort: 5, Meta: Meta{Title: "事件中心"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "3", Path: "/cluster", Name: "集群管理", Sort: 0, Meta: Meta{Title: "集群管理"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "3", Path: "/deployment", Name: "工作负载", Sort: 1, Meta: Meta{Title: "工作负载"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "3", Path: "/service", Name: "服务发现", Sort: 2, Meta: Meta{Title: "服务发现"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "3", Path: "/node", Name: "节点管理", Sort: 3, Meta: Meta{Title: "节点管理"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "3", Path: "/config", Name: "配置中心", Sort: 4, Meta: Meta{Title: "配置中心"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "3", Path: "/events", Name: "事件中心", Sort: 5, Meta: Meta{Title: "事件中心"}},
+		// 资产中心
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "4", Path: "/pipeline", Name: "流水线", Sort: 1, Meta: Meta{Title: "流水线"}},
 		// 系统设置子菜单
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "5", Path: "authority", Name: "角色管理", Sort: 1, Meta: Meta{Title: "角色管理"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "5", Path: "user", Name: "用户管理", Sort: 2, Meta: Meta{Title: "用户管理"}},
-		{MenuLevel: 0, Hidden: false, Disabled: false, ParentId: "5", Path: "operation", Name: "操作历史", Sort: 3, Meta: Meta{Title: "操作历史"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "5", Path: "/authority", Name: "角色管理", Sort: 1, Meta: Meta{Title: "角色管理"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "5", Path: "/user", Name: "用户管理", Sort: 2, Meta: Meta{Title: "用户管理"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "5", Path: "/operation", Name: "操作历史", Sort: 3, Meta: Meta{Title: "操作历史"}},
+		{MenuLevel: 2, Hidden: false, Disabled: false, ParentId: "5", Path: "/state", Name: "服务器状态", Sort: 4, Meta: Meta{Title: "服务器状态"}},
 	}
 )
 
@@ -121,7 +131,36 @@ var (
 	}
 )
 
+// DepartmentInitData 部门初始化数据
+var DepartmentInitData = []Department{
+	// 顶层部门
+	{ParentId: "0", DeptName: "Kubemanage", Sort: 1, Leader: "", Status: 1},
+	// 子部门
+	{ParentId: "1", DeptName: "研发部", Sort: 1, Leader: "", Status: 1},
+	{ParentId: "1", DeptName: "运维部", Sort: 2, Leader: "", Status: 1},
+}
+
 var CasbinApi = buildCasbinRule(SysApis)
+
+type BasicCasbinInfo struct {
+	Path   string `form:"path"  json:"path"`      // 路径
+	Method string ` form:"method"  json:"method"` // 方法
+}
+
+var BasicApiRule = []BasicCasbinInfo{
+	{Path: "/api/user/login", Method: "POST"},
+	{Path: "/api/user/loginout", Method: "GET"},
+	{Path: "/api/user/getinfo", Method: "GET"},
+	{Path: "/api/user/:id/change_pwd", Method: "POST"},
+}
+
+func (b BasicCasbinInfo) GetPATH() string {
+	return b.Path
+}
+
+func (b BasicCasbinInfo) GetMethod() string {
+	return b.Method
+}
 
 // buildCasbinRule 构建角色casbin api
 func buildCasbinRule(apis []SysApi) []adapter.CasbinRule {
@@ -155,15 +194,24 @@ func buildCasbinRule(apis []SysApi) []adapter.CasbinRule {
 var SysApis = []SysApi{
 	// api接口
 	{Path: "/api/sysApi/getAPiList", Description: "获取系统API列表", ApiGroup: "系统", Method: "GET"},
-
+	{Path: "/api/system/state", Description: "获取系统信息", ApiGroup: "系统", Method: "GET"},
 	// 用户相关接口
+	{Path: "/api/user/register", Description: "用户注册", ApiGroup: "用户", Method: "POST"},
+	{Path: "/api/user/update", Description: "更新用户信息", ApiGroup: "用户", Method: "POST"},
 	{Path: "/api/user/login", Description: "用户登录", ApiGroup: "用户", Method: "POST"},
 	{Path: "/api/user/loginout", Description: "用户退出", ApiGroup: "用户", Method: "GET"},
 	{Path: "/api/user/getinfo", Description: "获取用户信息", ApiGroup: "用户", Method: "GET"},
-	{Path: "/api/user/:id/set_auth", Description: "设置用户权限", ApiGroup: "用户", Method: "PUT"},
+	{Path: "/api/user/:id/set_auth", Description: "设置用户权限", ApiGroup: "用户", Method: "POST"},
 	{Path: "/api/user/:id/delete_user", Description: "删除用户", ApiGroup: "用户", Method: "DELETE"},
+	{Path: "/api/user/delete_users", Description: "批量删除用户", ApiGroup: "用户", Method: "POST"},
 	{Path: "/api/user/:id/change_pwd", Description: "修改密码", ApiGroup: "用户", Method: "POST"},
 	{Path: "/api/user/:id/reset_pwd", Description: "重置密码", ApiGroup: "用户", Method: "PUT"},
+	{Path: "/api/user/:id/:action/lockUser", Description: "更改用户锁定状态", ApiGroup: "用户", Method: "PUT"},
+	// 部门相关接口
+	{Path: "/api/user/deptTree", Description: "获取部门组织树", ApiGroup: "部门", Method: "GET"},
+	{Path: "/api/user/:id/deptUsers", Description: "获取某个部门下的用户信息", ApiGroup: "部门", Method: "GET"},
+	{Path: "/api/user/:id/getPage", Description: "获取部门用户列表", ApiGroup: "部门", Method: "POST"},
+	{Path: "/api/user/getDeptByPage", Description: "分页获取部门信息", ApiGroup: "部门", Method: "POST"},
 	// 操作审计接口
 	{Path: "/api/operation/get_operations", Description: "查询操作记录列表", ApiGroup: "操作审计", Method: "GET"},
 	{Path: "/api/operation/:id/delete_operation", Description: "删除单条记录", ApiGroup: "操作审计", Method: "DELETE"},
@@ -177,8 +225,33 @@ var SysApis = []SysApi{
 	{Path: "/api/menu/add_menu_authority", Description: "添加角色", ApiGroup: "菜单", Method: "POST"},
 	// 权限RBAC接口
 	{Path: "/api/authority/getPolicyPathByAuthorityId", Description: "获取角色api权限", ApiGroup: "权限", Method: "GET"},
-	{Path: "/api/authority/updateCasbinByAuthority", Description: "更改角色api权限", ApiGroup: "用户", Method: "POST"},
+	{Path: "/api/authority/updateCasbinByAuthority", Description: "更改角色api权限", ApiGroup: "权限", Method: "POST"},
 	{Path: "/api/authority/getAuthorityList", Description: "获取角色列表", ApiGroup: "权限", Method: "GET"},
+	{Path: "/api/authority/:authID/delAuthority", Description: "删除角色", ApiGroup: "权限", Method: "DELETE"},
+	{Path: "/api/authority/createAuthority", Description: "创建角色", ApiGroup: "权限", Method: "POST"},
+	{Path: "/api/authority/updateAuthority", Description: "修改角色", ApiGroup: "权限", Method: "PUT"},
+
+	// CMDB相关接口
+	{Path: "/api/cmdb/getHostGroupTree", Description: "获取主机组树", ApiGroup: "资产管理", Method: "GET"},
+	{Path: "/api/cmdb/getHostGroupList", Description: "获取主机组列表", ApiGroup: "资产管理", Method: "GET"},
+	{Path: "/api/cmdb/:instanceID/deleteHostGroup", Description: "删除主机组", ApiGroup: "资产管理", Method: "DELETE"},
+	{Path: "/api/cmdb/createSonHostGroup", Description: "创建子级主机组", ApiGroup: "资产管理", Method: "POST"},
+	{Path: "/api/cmdb/updateHostGroup", Description: "更新主机组", ApiGroup: "资产管理", Method: "PUT"},
+	{Path: "/api/cmdb/createHostGroup", Description: "创建同级主机组", ApiGroup: "资产管理", Method: "POST"},
+
+	{Path: "/api/cmdb/:groupID/pageHost", Description: "分页获取主机信息", ApiGroup: "资产管理", Method: "GET"},
+	{Path: "/api/cmdb/getHostsList", Description: "获取主机列表", ApiGroup: "资产管理", Method: "GET"},
+	{Path: "/api/cmdb/deleteHosts", Description: "批量删除主机", ApiGroup: "资产管理", Method: "POST"},
+	{Path: "/api/cmdb/:instanceID/deleteHost", Description: "删除主机", ApiGroup: "资产管理", Method: "DELETE"},
+	{Path: "/api/cmdb/createHost", Description: "创建主机", ApiGroup: "资产管理", Method: "POST"},
+	{Path: "/api/cmdb/updateHost", Description: "修改主机", ApiGroup: "资产管理", Method: "POST"},
+
+	{Path: "/api/cmdb/createSecret", Description: "创建认证信息", ApiGroup: "资产管理", Method: "POST"},
+	{Path: "/api/cmdb/updateSecret", Description: "更新认证信息", ApiGroup: "资产管理", Method: "POST"},
+	{Path: "/api/cmdb/pageSecret", Description: "分页获取认证信息", ApiGroup: "资产管理", Method: "GET"},
+	{Path: "/api/cmdb/getSecretList", Description: "获取认证信息列表", ApiGroup: "资产管理", Method: "GET"},
+	{Path: "/api/cmdb/deleteSecrets", Description: "批量删除认证信息", ApiGroup: "资产管理", Method: "POST"},
+	{Path: "/api/cmdb/:instanceID/deleteSecret", Description: "删除认证信息", ApiGroup: "资产管理", Method: "DELETE"},
 	// K8S相关接口
 	{Path: "/api/k8s/deployment/create", Description: "创建deployment", ApiGroup: "Kubernetes", Method: "POST"},
 	{Path: "/api/k8s/deployment/del", Description: "删除deployment", ApiGroup: "Kubernetes", Method: "DELETE"},
@@ -241,4 +314,33 @@ var SysApis = []SysApi{
 	{Path: "/api/k8s/workflow/del", Description: "删除workflow", ApiGroup: "Kubernetes", Method: "DELETE"},
 	{Path: "/api/k8s/workflow/list", Description: "查询workflow列表", ApiGroup: "Kubernetes", Method: "GET"},
 	{Path: "/api/k8s/workflow/id", Description: "查看workflow", ApiGroup: "Kubernetes", Method: "GET"},
+	// Ollama LLM相关接口
+	{Path: "/api/k8s/ollama/deploy", Description: "部署Ollama到指定节点", ApiGroup: "Kubernetes", Method: "POST"},
+	{Path: "/api/k8s/ollama/list", Description: "获取Ollama部署列表", ApiGroup: "Kubernetes", Method: "GET"},
+	{Path: "/api/k8s/ollama/model/pull", Description: "拉取模型到Ollama部署", ApiGroup: "Kubernetes", Method: "POST"},
+	{Path: "/api/k8s/ollama/model/list", Description: "获取Ollama部署的模型列表", ApiGroup: "Kubernetes", Method: "GET"},
+	{Path: "/api/k8s/ollama/model/del", Description: "删除Pod中的Ollama模型", ApiGroup: "Kubernetes", Method: "DELETE"},
+	{Path: "/api/k8s/ollama/model/detail", Description: "获取Pod中Ollama模型的详情", ApiGroup: "Kubernetes", Method: "GET"},
+	{Path: "/api/k8s/ollama/chat", Description: "调用对应Pod上的模型进行聊天", ApiGroup: "Kubernetes", Method: "POST"},
+	{Path: "/api/k8s/ollama/embeddings", Description: "调用对应Pod上的模型生成文本向量嵌入", ApiGroup: "Kubernetes", Method: "POST"},
+	// 知识库相关接口
+	{Path: "/api/k8s/knowledge/deploy", Description: "部署知识库到指定节点", ApiGroup: "Kubernetes", Method: "POST"},
+	{Path: "/api/k8s/knowledge/list", Description: "获取知识库部署列表", ApiGroup: "Kubernetes", Method: "GET"},
+	{Path: "/api/k8s/knowledge/detail", Description: "获取知识库详情", ApiGroup: "Kubernetes", Method: "GET"},
+	{Path: "/api/k8s/knowledge/document/upload", Description: "上传文档到知识库", ApiGroup: "Kubernetes", Method: "POST"},
+	{Path: "/api/k8s/knowledge/query", Description: "查询知识库", ApiGroup: "Kubernetes", Method: "POST"},
+	// AI 相关接口
+	{Path: "/api/ai/chat_with_kb", Description: "结合知识库进行聊天", ApiGroup: "AI", Method: "POST"},
+	{Path: "/api/ai/mcp/servers", Description: "返回MCP server配置", ApiGroup: "AI", Method: "GET"},
+	{Path: "/api/ai/mcp/tools", Description: "查看可用工具列表", ApiGroup: "AI", Method: "GET"},
+	{Path: "/api/ai/mcp/servers", Description: "启用新服务器", ApiGroup: "AI", Method: "POST"},
+}
+
+// CMDBHostGroupInitData 初始化主机组
+var CMDBHostGroupInitData = []CMDBHostGroup{
+	{ParentId: "0", InstanceID: utils.GetSnowflakeID(), GroupName: "Kubemanage", Sort: 1},
+
+	{ParentId: "1", InstanceID: utils.GetSnowflakeID(), GroupName: "研发环境", Sort: 1},
+	{ParentId: "1", InstanceID: utils.GetSnowflakeID(), GroupName: "测试环境", Sort: 2},
+	{ParentId: "1", InstanceID: utils.GetSnowflakeID(), GroupName: "生产环境", Sort: 3},
 }

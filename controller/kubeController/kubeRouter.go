@@ -109,4 +109,36 @@ func (k *kubeRouter) initRoutes(ginEngine *gin.RouterGroup) {
 		k8sRoute.GET("/workflow/id", WorkFlow.GetWorkflowByID)
 	}
 
+	{
+		k8sRoute.POST("/ollama/deploy", Ollama.DeployOllama)
+		k8sRoute.GET("/ollama/list", Ollama.GetOllamaList)
+		// 模型管理
+		k8sRoute.POST("/ollama/model/pull", Ollama.PullModel)
+		k8sRoute.GET("/ollama/model/list", Ollama.GetModelList)
+		k8sRoute.DELETE("/ollama/model/del", Ollama.DeleteModel)
+		k8sRoute.GET("/ollama/model/detail", Ollama.GetModelDetail)
+		// 聊天接口
+		k8sRoute.POST("/ollama/chat", Ollama.Chat)
+		// 向量嵌入接口
+		k8sRoute.POST("/ollama/embeddings", Ollama.Embeddings)
+	}
+
+	{
+		// 知识库接口
+		k8sRoute.POST("/knowledge/deploy", Knowledge.DeployKnowledge)
+		k8sRoute.GET("/knowledge/list", Knowledge.ListKnowledge)
+		k8sRoute.GET("/knowledge/detail", Knowledge.GetKnowledgeDetail)
+		k8sRoute.POST("/knowledge/document/upload", Knowledge.UploadDocument)
+		k8sRoute.POST("/knowledge/query", Knowledge.QueryDocument)
+	}
+
+	// AI 相关接口
+	aiRoute := ginEngine.Group("/ai")
+	{
+		aiRoute.POST("/chat_with_kb", AI.ChatWithKB)
+		aiRoute.GET("/mcp/servers", MCPServer.ListServers)
+		aiRoute.GET("/mcp/tools", MCPServer.ListServerTools)
+		aiRoute.POST("/mcp/servers", MCPServer.CreateServer)
+	}
+
 }

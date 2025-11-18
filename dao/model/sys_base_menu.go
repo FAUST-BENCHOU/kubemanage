@@ -2,13 +2,14 @@ package model
 
 import (
 	"context"
+
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
 
 type SysBaseMenu struct {
 	ID            int                                        `gorm:"column:id;primary_key;AUTO_INCREMENT;not null" json:"id"`
-	MenuLevel     uint                                       `json:"-"`
+	MenuLevel     uint                                       `json:"menuLevel"`
 	ParentId      string                                     `json:"parentId" gorm:"comment:父菜单ID"`    // 父菜单ID
 	Path          string                                     `json:"path" gorm:"comment:路由path"`       // 路由path
 	Name          string                                     `json:"name" gorm:"comment:路由name"`       // 路由name
@@ -39,7 +40,7 @@ func (m *SysBaseMenu) MigrateTable(ctx context.Context, db *gorm.DB) error {
 
 func (m *SysBaseMenu) IsInitData(ctx context.Context, db *gorm.DB) (bool, error) {
 	var out *SysBaseMenu
-	if err := db.WithContext(ctx).Where("path = 'dashboard' ").Find(&out).Error; err != nil {
+	if err := db.WithContext(ctx).Where("path = '/dashboard' ").Find(&out).Error; err != nil {
 		return false, nil
 	}
 	return out.ID != 0, nil

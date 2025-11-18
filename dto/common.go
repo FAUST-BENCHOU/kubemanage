@@ -2,6 +2,7 @@ package dto
 
 import (
 	"github.com/gin-gonic/gin"
+
 	"github.com/noovertime7/kubemanage/pkg"
 )
 
@@ -15,6 +16,26 @@ type PageInfo struct {
 	Keyword  string `json:"keyword" form:"keyword"`   //关键字
 }
 
+func (a PageInfo) GetPage() int {
+	return a.Page
+}
+
+func (a PageInfo) GetPageSize() int {
+	return a.PageSize
+}
+
+func (a PageInfo) IsFitter() bool {
+	return a.Keyword != ""
+}
+
+func (a PageInfo) GetFitter() string {
+	return a.Keyword
+}
+
+func (a *PageInfo) BindingValidParams(ctx *gin.Context) error {
+	return pkg.DefaultGetValidParams(ctx, a)
+}
+
 type IdsReq struct {
 	Ids []int `json:"ids" form:"ids"`
 }
@@ -24,6 +45,10 @@ func (a *IdsReq) BindingValidParams(ctx *gin.Context) error {
 	return pkg.DefaultGetValidParams(ctx, a)
 }
 
-func (a *PageInfo) BindingValidParams(ctx *gin.Context) error {
+type InstancesReq struct {
+	Ids []string `json:"ids" form:"ids"`
+}
+
+func (a *InstancesReq) BindingValidParams(ctx *gin.Context) error {
 	return pkg.DefaultGetValidParams(ctx, a)
 }
