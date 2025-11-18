@@ -1,71 +1,117 @@
 English | [简体中文](./README.md)
-# kubemanage
-Kubemanage is a simple and easy to use K8S management platform. The front end uses vue3 and the back end uses gin+gorm. It is a very convenient project for beginners of K8S development, and can also be used as a template for enterprise secondary development
 
-Front end project address https://github.com/noovertime7/kubemanage-web
-## Start Deployment
-### Initialize database
-The database needs to be created manually, and the data table and data will be initialized automatically through the 'DBInitializer'
+# Kubernetes AI Application Control Center
+
+This project turns a Kubernetes cluster into an AI application hub. It provides a unified control plane to deploy Ollama models, run knowledge bases, register MCP servers, and compose RAG-style services. Backend is powered by gin + gorm + client-go; the UI (repo: [kubemanage-web](https://github.com/noovertime7/kubemanage-web)) is built with Vue3/Vite.
+
+## Highlights
+
+- **Ollama lifecycle** – deploy models, pull weights, inspect pods, run chat & embedding APIs.
+- **Knowledge base toolkit** – spin up ChromaDB / Milvus / Weaviate instances, upload documents, run semantic queries.
+- **MCP integration** – register Model Context Protocol servers so agents can invoke external tools.
+- **AI scenario orchestration** – `/api/ai/chat_with_kb` combines knowledge retrieval with LLM answers for enterprise RAG.
+- **Platform features** – RBAC, CMDB, auditing, workflow, etc. remain available for ops teams.
+
+## Architecture at a Glance
+
+| Layer | Description |
+| ----- | ----------- |
+| API Gateway | Gin services, Casbin-based RBAC, swagger doc generation |
+| Cluster adapter | client-go to create Deployment/Service/PVC for AI workloads |
+| Data plane | MySQL for accounts / CMDB / audit; Kubernetes for AI pods |
+| Front-end | Vue3 + Pinia + Vite (separate repo) |
+
+## Quick Start
+
+### Prerequisites
+- Go 1.20+, Node.js 16+
+- Accessible Kubernetes cluster (minikube/kind/production)
+- MySQL (`kubemanage` database)
+- kubeconfig path or InCluster permissions
+
+### Database
 ```sql
-CREATE DATABASE kubemanage;
+CREATE DATABASE kubemanage CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ```
-### Operation engineering
-front
-```shell
-git clone  https://github.com/noovertime7/kubemanage-web.git
-cd kubemanage-web
-npm install
-npm run serve
-```
-back-end
-Note: Please ensure the username// The kubeconfig file of k8s exists in the kube folder. Later, it will be changed to use crd and container deployment
 
-Before starting, please set the configuration file environment variable KubeManageConfigFile="configuration file location", configuration file priority: default configuration<environment variable<command line
-```
-git clone  https://github.com/noovertime7/kubemanage.git
+### Backend
+```bash
+git clone https://github.com/noovertime7/kubemanage.git
 cd kubemanage
 go mod tidy
-go run cmd/main.go
+
+# provide config via env KUBEMANAGE-CONFIG or --configFile
+go run cmd/main.go --configFile=config.yaml
 ```
-Default username password admin/kubemanage
+Default credentials: `admin / kubemanage`
+
+### Frontend
+```bash
+git clone https://github.com/noovertime7/kubemanage-web.git
+cd kubemanage-web
+npm install
+npm run dev
+```
+
+## AI Module Reference
+
+| Module | Endpoint | Inputs | Successful response |
+| ------ | -------- | ------ | ------------------- |
+| Ollama deploy | `POST /api/k8s/ollama/deploy` | `kubeDto.OllamaDeployInput` (name, namespace, image, port, nodeSelector, etc.) | `{"code":200,"data":"部署成功"}` |
+| Ollama list | `GET /api/k8s/ollama/list` | `filter_name/namespace/node_name/page/limit` | `{"data":{"total":n,"items":[...]}}` |
+| Pull model | `POST /api/k8s/ollama/model/pull` | `pod_name/namespace/model_name` | `{"data":"拉取成功"}` |
+| Model list/detail/delete | `/model/list|detail|del` | Pod & model identifiers | object payload or `"删除成功"` |
+| Chat / Embedding | `/ollama/chat`, `/ollama/embeddings` | Pod + model + chat/ prompt payload | answer text or vector |
+| Knowledge deploy | `POST /api/k8s/knowledge/deploy` | `KnowledgeDeployInput` (Ollama binding optional) | `{"data":"部署成功"}` |
+| Knowledge list/detail | `GET /api/k8s/knowledge/list|detail` | filters or name/namespace | deployments or detailed spec |
+| Document upload | `POST /api/k8s/knowledge/document/upload` | multipart form data + file | ingestion result |
+| Knowledge query | `POST /api/k8s/knowledge/query` | `KnowledgeQueryInput` (collection, text, top_k) | relevant document array |
+| AI chat with KB | `POST /api/ai/chat_with_kb` | `ChatWithKBInput` (knowledge & Ollama params + question) | RAG answer or streaming chunks |
+
+Swagger:
+```bash
+swag init --pd -d ./cmd,docs
+# visit http://127.0.0.1:6180/swagger/index.html
+```
+
+## Configuration Notes
+
+Key sections in `config.yaml`:
+
+```yaml
+default:
+  listenAddr: ":6180"
+  kubernetesConfigFile: "/path/to/kubeconfig"
+
+mcp:
+  enable: true
+  implementationName: "kubemanage-mcp-client"
+  # ...
+mysql:
+  host: "127.0.0.1"
+  user: "root"
+  password: "123456"
+```
+
+- Configuration priority: default < env `KUBEMANAGE-CONFIG` < CLI `--configFile`.
+- Support InCluster usage when running inside Kubernetes.
+- MCP section lets you pre-register tool servers for agents.
+
+## Contribution Guide
+
+- **Issues** – focus on bugs, features, or design proposals.
+- **Pull Requests** – fork, create branch, use `feat(module): desc` commit messages, include tests/description.
+- **Review** – at least two maintainers review & approve.
+
 ## Roadmap
-- Support RBAC permission management
-- Support multi cluster management
-- Support application one click publishing
-- Support asset management
-## Issue Specification
-- Issue is only used to submit bugs or features and design related content. Other content may be closed directly.
-- Before submitting the issue, please search whether the relevant content has been proposed.
-## Pull Request Specification
-- Please fork a copy to your own project and create a new branch under your own project.
-- The commit information should be filled in in the form of `feat (model): description information`, for example, `fix (user): fix xxx bug/fat (user): add xxx`.
-- If you want to fix the bug, please give a description in PR.
-- Two maintenance personnel are required to participate in merging code: one person reviews and approves, and the other person reviews again. After approval, the code can be merged.
-## Generate APi Document
-Generate api documents using swag
 
-PS: Please use the latest version of the swag tool. It is recommended to pull the latest code and compile it by yourself, otherwise 'swag init' initialization will fail
-```shell
-swag init   --pd  -d ./cmd,docs
-```
-Access after successful generation `http://127.0.0.1:6180/swagger/index.html`
-## Effect demonstration
-home page
-![Home Page](./img/dashboard.jpg?raw=true )
+- ✅ Ollama lifecycle management
+- ✅ Knowledge base deployment + RAG APIs
+- ✅ MCP tool registration
+- 🕑 Multi-cluster federation
+- 🕑 Auto scaling policies for AI pods
+- 🕑 Agent workflow templates
 
-Workflow
-![Workflow](./img/wordflow.jpg?raw=true )
-deployment
-![deployment](./img/deployment.jpg?raw=true )
-pod
-![Home Page](./img/pod.jpg?raw=true )
-POD Log
-![POD Log](./img/pod_log.jpg?raw=true )
-POD terminal
-![POD terminal](./img/pod_ter.jpg?raw=true )
-service
-![service]( ./img/service.jpg?raw=true )
-configmap
-![configmap]( ./img/cm_detail.jpg?raw=true )
-node
-![node]( ./img/node.jpg?raw=true )
+---
+
+欢迎提交 issues / PRs to push the Kubernetes AI Application Control Center forward together.

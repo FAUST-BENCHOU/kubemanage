@@ -1,153 +1,114 @@
 简体中文 | [English](./README_en.md)
-# kubemanage
-<p >
-  <a href="https://golang.google.cn/">
-    <img src="https://img.shields.io/badge/Golang-1.18-green.svg" alt="golang">
-  </a>
-  <a href="https://gin-gonic.com/">
-    <img src="https://img.shields.io/badge/Gin-1.7.4-red.svg" alt="gin">
-  </a>
-  <a href="https://gorm.io/">
-    <img src="https://img.shields.io/badge/Gorm-1.21-orange.svg" alt="gorm">
-  </a>
-  <a href="https://vuejs.org/">
-    <img src="https://img.shields.io/badge/Vue-3.0.0-orange.svg" alt="vue">
-  </a>
-</p>
 
-> kubemanage是一个简单易用的K8S管理平台，前端使用vue3，后端使用gin+gorm,对于初学k8s开发的同学来说，是一个很方便练手的项目，也可以作为企业二次开发的模板
+# Kubernetes AI 应用管理中心
 
-技术栈选型当下最主流框架，后端使用Gin+GORM，前端使用vite+pinia+VUE3(v3版本)开发，前后端分离开发模式，使用client-go与K8S交互，使用Casbin与动态路由实现RBAC的权限体系
+> 本项目致力于在 Kubernetes 集群中统一部署、运行与治理多种 AI 应用（大模型、知识库、MCP 工具等），让 AIOps 团队可以在同一个控制台完成模型接入、知识库构建、推理服务暴露以及多模型协同调度。项目基于 gin + gorm + client-go 构建后端，前端使用 Vue3 技术栈，适合作为企业级 AI 应用管理平台的脚手架。
 
-前端项目地址 https://github.com/noovertime7/kubemanage-web
+## 核心能力
 
-V3版本前端项目地址(开发中) https://gitee.com/noovertime/kubemanage-web.git
-## 开始部署
-### 初始化数据库
-需要手动创建数据库，数据表与数据会通过`DBInitializer`自动初始化
+- **Ollama 模型编排**：一键部署 / 列表管理 / 模型拉取 / 会话接口 / Embedding，原生适配集群内的节点调度与资源限制。
+- **知识库工作台**：支持多种向量数据库（ChromaDB、Milvus、Weaviate）部署、文档上传切分、向量检索与问答。
+- **MCP 生态衔接**：可注册多种 Model Context Protocol Server，为智能体提供工具集。
+- **AI 场景编排**：封装 `/api/ai/chat_with_kb` 接口，联动知识库与大模型，构建企业级检索增强生成（RAG）服务。
+- **平台治理**：RBAC、操作审计、资产管理、CMDB、工单等传统能力仍然保留，可与 AI 场景结合。
 
+## 架构概览
+
+- **后端**：Gin + GORM，负责 API、鉴权、Kubernetes client-go 资源编排、Casbin RBAC。
+- **前端**：Vue3 + Vite + Pinia，提供 AI 应用控制台（项目仓库：[kubemanage-web](https://github.com/noovertime7/kubemanage-web)）。
+- **Kubernetes 适配**：使用 kubeconfig 或 InCluster 配置连接集群，所有 AI 服务均以 Deployment/Service 形式管理。
+- **存储**：MySQL（权限、CMDB、审计等业务数据）。
+
+## 快速开始
+
+### 1. 准备环境
+- Go 1.20+
+- Node.js 16+
+- 可访问的 Kubernetes 集群（本地 kind/minikube 或云上集群）
+- MySQL（默认数据库名 `kubemanage`）
+
+### 2. 初始化数据库
 ```sql
-CREATE DATABASE kubemanage;
+CREATE DATABASE kubemanage CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ```
-### 运行工程
-前端
-```shell
-git clone https://github.com/noovertime7/kubemanage-web.git
 
-cd kubemanage-web
-
-npm install
-
-npm run serve
-```
-后端
-
-注意：请确保用户名/./kube  文件夹下存在k8s的kubeconfig文件，后面重构为多集群注册模式，容器部署,前端使用V3版本，后端请切换到V3分支
-
-开始前请设置配置文件环境变量`KUBEMANAGE-CONFIG`，或通过命令行参数`configFile`指定，配置文件优先级: 默认配置 < 环境变量< 命令行
-
-```
-git clone https://github.com/noovertime7/kubemanage.git
-
+### 3. 启动后端
+```bash
+git clone https://github.com/FAUST-BENCHOU/kubemanage.git
 cd kubemanage
 
 go mod tidy
 
-go run cmd/main.go
+# 指定配置文件：环境变量 KUBEMANAGE-CONFIG 或命令行 --configFile
+go run cmd/main.go --configFile=config.yaml
 ```
-默认用户名密码 admin/kubemanage
+> 默认账号密码：`admin / kubemanage`
 
-## 现有特性
+### 4. 启动前端
+```bash
+git clone https://github.com/FAUST-BENCHOU/kubemanage-web.git
+cd kubemanage-web
+npm install
+npm run dev
+```
 
-- 支持RBAC的权限管理，根据角色配置菜单权限与接口权限
-- 支持资产管理，多主机同步连接，互不影响
-- 本地Kubernetes集群的管理
-- 接口调用操作审计功能
+## AI 模块说明
+
+| 模块 | 接口 | 主要输入 | 典型返回 |
+| ---- | ---- | -------- | -------- |
+| Ollama 部署 | `POST /api/k8s/ollama/deploy` | `kubeDto.OllamaDeployInput`（名称、命名空间、镜像、端口…） | `{"code":200,"data":"部署成功"}` |
+| Ollama 列表 | `GET /api/k8s/ollama/list` | `filter_name / namespace / node_name / page / limit` | `{"data":{"total":n,"items":[...]}}` |
+| 模型拉取 | `POST /api/k8s/ollama/model/pull` | `pod_name / namespace / model_name` | `{"data":"拉取成功"}` |
+| 模型列表/详情/删除 | `/model/list` `/model/detail` `/model/del` | Pod 信息 + 模型名 | 返回模型集合或“删除成功” |
+| 聊天 / Embedding | `/ollama/chat` `/ollama/embeddings` | Pod + 模型 + 对话/文本 | 返回 LLM 答复或向量 |
+| 知识库部署 | `POST /api/k8s/knowledge/deploy` | `kubeDto.KnowledgeDeployInput`（镜像、端口、绑定 Ollama 信息等） | `{"data":"部署成功"}` |
+| 知识库列表/详情 | `GET /api/k8s/knowledge/list|detail` | 过滤条件或 name/namespace | 返回部署清单/详情 |
+| 文档上传 | `POST /api/k8s/knowledge/document/upload` | form-data（Pod、知识库类型、文件…） | 返回入库结果 |
+| 知识库查询 | `POST /api/k8s/knowledge/query` | Pod、collection、query_text、top_k | 返回相关文档列表 |
+| AI Chat with KB | `POST /api/ai/chat_with_kb` | `ChatWithKBInput`（知识库参数 + Ollama 模型 + question） | 返回模型回答或流式内容 |
+
+> 更完整的接口注释可见 `dao/model/init.go` 注册清单；Swagger 文档可通过 `swag init --pd -d ./cmd,docs` 生成并访问 `http://127.0.0.1:6180/swagger/index.html`。
+
+## 配置说明
+
+`config.yaml` 关键段落：
+
+```yaml
+default:
+  listenAddr: ":6180"
+  kubernetesConfigFile: "/path/to/kubeconfig"
+
+mcp:
+  enable: true
+  implementationName: "kubemanage-mcp-client"
+  # ...
+mysql:
+  host: "127.0.0.1"
+  user: "root"
+  password: "123456"
+```
+
+- 可通过环境变量 `KUBEMANAGE-CONFIG` 覆盖配置文件路径。
+- 支持 InCluster 模式读取 ServiceAccount。
+- MCP 段可配置默认工具 server，方便为 LLM/Agent 提供外部工具。
+
+## 开发与贡献
+
+### Issue
+- 仅用于提交 Bug / Feature / 设计讨论，提问请先搜索是否已有。
+
+### Pull Request
+- fork 后新建分支，commit message 使用 `feat(module): desc` 或 `fix(module): desc`。
+- 提交前运行 `go test ./...` 与 `swag init`。
+- 至少两名维护者 review 通过后合并。
 
 ## Roadmap
 
-- 支持多集群管理
-- 支持应用一键发布
-- 在线工单审批系统
+- ✅ Ollama 模型管理
+- ✅ 知识库部署、上传与查询
+- 🕑 自动扩缩容策略
+- 🕑 Agent 工作流编排
 
-## Issue 规范
-- issue 仅用于提交 Bug 或 Feature 以及设计相关的内容，其它内容可能会被直接关闭。
+---
 
-- 在提交 issue 之前，请搜索相关内容是否已被提出。
-
-## Pull Request 规范
-- 请先 fork 一份到自己的项目下，在自己项目下新建分支。
-
-- commit 信息要以`feat(model): 描述信息` 的形式填写，例如 `fix(user): fix xxx bug / feat(user): add xxx`。
-
-- 如果是修复 bug，请在 PR 中给出描述信息。
-
-- 合并代码需要两名维护人员参与：一人进行 review 后 approve，另一人再次 review，通过后即可合并。
-
-## 生成APi文档
-
-使用swag生成api文档
-
-PS: 请使用最新版本的swag工具，建议拉取最新代码后自行编译，否则会`swag init`初始化失败
-
-```shell
-swag init --pd -d ./cmd,docs
-```
-
-成功生成后访问 `http://127.0.0.1:6180/swagger/index.html`
-
-## 效果演示
-
-集群详情(v3版本)
-![image](https://github.com/noovertime7/kubemanage/assets/100392073/c1a02d86-4523-418c-8d4f-e93393bd2569)
-
-首页
-![首页](./img/dashboard.jpg?raw=true)
-
-操作审计(v3版本)
-![](./img/operation.png)
-
-接口与菜单的RBAC控制(v3版本)
-![](./img/rbac/api_rbac.png)
-![](./img/rbac/menu_rbac.png)
-
-用户管理(v3版本)
-![](./img/user.png)
-
-服务状态(v3版本)
-![](./img/system_state.png)
-
-CMDB主机管理(v3版本)
-![](./img/cmdb/host.png)
-
-CMDB网页终端(v3版本)
-![](./img/cmdb/webshell.png)
-
-工作流
-![工作流](./img/wordflow.jpg?raw=true)
-
-deployment
-![image](https://github.com/noovertime7/kubemanage/assets/100392073/d9d1cc92-1f35-445f-af16-3e3804e9ede0)
-
-![image](https://github.com/noovertime7/kubemanage/assets/100392073/c6b6344e-afe2-41e0-b68b-fdc5da6c8a8a)
-
-
-![deployment](./img/deployment.jpg?raw=true)
-
-pod
-![首页](./img/pod.jpg?raw=true)
-
-POD日志
-![POD 日志](./img/pod_log.jpg?raw=true)
-
-POD终端
-![POD 终端](./img/pod_ter.jpg?raw=true)
-
-service
-![service](./img/service.jpg?raw=true)
-
-configmap
-![configmap](./img/cm_detail.jpg?raw=true)
-
-node
-![node](./img/node.jpg?raw=true)
+如需联系或集成更多 AI 场景，欢迎提 Issue / PR，一起建设面向企业的 Kubernetes AI 应用管理中心。
